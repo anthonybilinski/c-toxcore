@@ -941,7 +941,10 @@ void do_friend_connections(Friend_Connections *fr_c, void *userdata)
     }
 
     if (fr_c->local_discovery_enabled) {
+    	printf("doing LAN discovery\n");
         LANdiscovery(fr_c);
+    } else {
+    	printf("NOT doing LAN discovery, it's disabled??\n");
     }
 }
 

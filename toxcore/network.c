@@ -477,11 +477,12 @@ int sendpacket(Networking_Core *net, IP_Port ip_port, const uint8_t *data, uint1
         addr6->sin6_scope_id = 0;
     } else {
         /* unknown address type*/
+    	printf("sendpacket unknown address type\n");
         return -1;
     }
 
     int res = sendto(net->sock, (const char *) data, length, 0, (struct sockaddr *)&addr, addrsize);
-
+    printf("sento returned %d\n",res);
     loglogdata(net->log, "O=>", data, length, ip_port, res);
 
     return res;

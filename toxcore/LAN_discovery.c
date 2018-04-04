@@ -251,7 +251,11 @@ static IP broadcast_ip(Family family_socket, Family family_broadcast)
         if (family_broadcast == TOX_AF_INET) {
             ip.family = TOX_AF_INET;
             ip.ip.v4 = IP4_BROADCAST;
+        } else {
+        	printf ("family_socket is AF_INET but family_broadcast is not\n");
         }
+    } else {
+    	printf("broadcast_ip passed unkown family %d\n",family_socket);
     }
 
     return ip;
@@ -383,7 +387,11 @@ int lan_discovery_send(uint16_t port, DHT *dht)
         if (ip_isset(&ip_port.ip)) {
             if (sendpacket(dht_get_net(dht), ip_port, data, 1 + CRYPTO_PUBLIC_KEY_SIZE) > 0) {
                 res = 1;
+            } else {
+            	printf("IPv6 multicast failed\n");
             }
+        } else {
+        	printf("IPv6 ip not set failed\n");
         }
     }
 
@@ -393,9 +401,14 @@ int lan_discovery_send(uint16_t port, DHT *dht)
     if (ip_isset(&ip_port.ip)) {
         if (sendpacket(dht_get_net(dht), ip_port, data, 1 + CRYPTO_PUBLIC_KEY_SIZE)) {
             res = 1;
+        } else {
+        	printf("IPv4 broadcast failed\n");
         }
+    } else {
+    	printf("IPv4 ip not set failed\n");
     }
-
+    printf("dht_get_net(dht) is %d\n",net_family(dht_get_net(dht)));
+    printf("lan_discovery_send returning with %d\n",res);
     return res;
 }
 

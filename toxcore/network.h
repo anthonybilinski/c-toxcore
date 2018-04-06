@@ -416,7 +416,7 @@ int bind_to_port(Socket sock, int family, uint16_t port);
  */
 Networking_Core *new_networking(Logger *log, IP ip, uint16_t port);
 Networking_Core *new_networking_ex(Logger *log, IP ip, uint16_t port_from, uint16_t port_to, unsigned int *error);
-Networking_Core *new_networking_no_udp(Logger *log);
+Networking_Core *new_networking_no_udp(Logger *log, IP ip);
 
 /* Function to cleanup networking stuff (doesn't do much right now). */
 void kill_networking(Networking_Core *net);

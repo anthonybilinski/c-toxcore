@@ -1178,6 +1178,7 @@ long int new_filesender(const Messenger *m, int32_t friendnumber, uint32_t file_
     ft->requested = 0;
 
     ft->slots_allocated = 0;
+    printf("new_filesender setting ft->slots_allocated to 0\n");
 
     ft->paused = FILE_PAUSE_NOT;
 
@@ -1459,6 +1460,7 @@ int file_data(const Messenger *m, int32_t friendnumber, uint32_t filenumber, uin
         ft->transferred += length;
 
         if (ft->slots_allocated) {
+            printf("file_data decreasing ft->slots_allocated at %d by one\n", ft->slots_allocated);
             --ft->slots_allocated;
         }
 
@@ -1535,6 +1537,7 @@ static bool do_all_filetransfers(Messenger *m, int32_t friendnumber, void *userd
         // Any status other than NONE means the file transfer is active.
         if (ft->status != FILESTATUS_NONE) {
             any_active_fts = true;
+            printf("decreasing num from %d, by one\n",num);
             --num;
 
             // If the file transfer is complete, we request a chunk of size 0.
@@ -1549,16 +1552,20 @@ static bool do_all_filetransfers(Messenger *m, int32_t friendnumber, void *userd
             }
 
             // Decrease free slots by the number of slots this FT uses.
+            printf("decreasing free slots from %d",*free_slots);
             *free_slots = max_s32(0, (int32_t) * free_slots - ft->slots_allocated);
+            printf(" to %d\n",*free_slots);
         }
 
         if (ft->status == FILESTATUS_TRANSFERRING && ft->paused == FILE_PAUSE_NOT) {
             if (max_speed_reached(m->net_crypto, friend_connection_crypt_connection_id(
                                       m->fr_c, friendcon->friendcon_id))) {
                 *free_slots = 0;
+                printf("transferring file is setting free_slots to 0\n");
             }
 
             if (*free_slots == 0) {
+                printf("free_slots is 0, skipping file chunk send\n");
                 continue;
             }
 
@@ -1581,6 +1588,7 @@ static bool do_all_filetransfers(Messenger *m, int32_t friendnumber, void *userd
             ft->requested += length;
 
             if (m->file_reqchunk) {
+                printf("file_reqchunk requesting chunk from qTox to send\n");
                 m->file_reqchunk(m, friendnumber, i, position, length, userdata);
             }
 
@@ -1611,6 +1619,7 @@ static void do_reqchunk_filecb(Messenger *m, int32_t friendnumber, void *userdat
                                   m->fr_c,
                                   m->friendlist[friendnumber].friendcon_id));
 
+    printf("free_slots for friend %d is %d\n",friendnumber, free_slots);
     // We keep MIN_SLOTS_FREE slots free for other packets, otherwise file
     // transfers might block other traffic for a long time.
     free_slots = max_s32(0, (int32_t)free_slots - MIN_SLOTS_FREE);
@@ -1629,6 +1638,7 @@ static void do_reqchunk_filecb(Messenger *m, int32_t friendnumber, void *userdat
         any_active_fts = do_all_filetransfers(m, friendnumber, userdata, &free_slots);
         ++loop_counter;
     }
+    printf("do_reqchunk_filecb exiting with loop_coutner at %d\n",loop_counter);
 }
 
 

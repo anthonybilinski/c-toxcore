@@ -32,9 +32,11 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "mono_time.h"
 #include "util.h"
+#include <stdio.h>
 
 typedef struct Packet_Data {
     uint64_t sent_time;
@@ -1006,8 +1008,9 @@ static int handle_request_packet(Mono_Time *mono_time, const Logger *log, Packet
         if (n == data[0]) {
             if (send_array->buffer[num]) {
                 uint64_t sent_time = send_array->buffer[num]->sent_time;
-
+                printf("sent_time: %lu, rtt_time: %lu, temp_time: %lu\n", sent_time, rtt_time, temp_time);
                 if ((sent_time + rtt_time) < temp_time) {
+                    printf("sent_time: %lu, rtt_time: %lu, temp_time: %lu\n",sent_time, rtt_time, temp_time);
                     send_array->buffer[num]->sent_time = 0;
                 }
             }
@@ -1045,6 +1048,7 @@ static int handle_request_packet(Mono_Time *mono_time, const Logger *log, Packet
 
     if (*latest_send_time < l_sent_time) {
         *latest_send_time = l_sent_time;
+        printf("set latest_send_time to %lu\n", *latest_send_time);
     }
 
     return requested;
@@ -1132,12 +1136,13 @@ static int reset_max_speed_reached(Net_Crypto *c, int crypt_connection_id)
         if (ret == 1 && dt->sent_time == 0) {
             if (send_data_packet_helper(c, crypt_connection_id, conn->recv_array.buffer_start, packet_num,
                                         dt->data, dt->length) != 0) {
+                printf("send_data_packet_helper failed again! uh oh.\n");
                 return -1;
             }
 
             dt->sent_time = current_time_monotonic(c->mono_time);
         }
-
+        printf("send_data_packet_helper succeeeded, resetting maximum_speed_reached to 0\n");
         conn->maximum_speed_reached = 0;
     }
 
@@ -1165,6 +1170,7 @@ static int64_t send_lossless_packet(Net_Crypto *c, int crypt_connection_id, cons
     reset_max_speed_reached(c, crypt_connection_id);
 
     if (conn->maximum_speed_reached && congestion_control) {
+        printf("send_lossless_packet returning because conn->maximum_speed_reached is %d\n",conn->maximum_speed_reached);
         return -1;
     }
 
@@ -1192,7 +1198,7 @@ static int64_t send_lossless_packet(Net_Crypto *c, int crypt_connection_id, cons
         }
     } else {
         conn->maximum_speed_reached = 1;
-        LOGGER_DEBUG(c->log, "send_data_packet failed");
+        printf("send_data_packet failed, setting conn->maximum_speed_reached\n");
     }
 
     return packet_num;
@@ -1307,10 +1313,12 @@ static int send_requested_packets(Net_Crypto *c, int crypt_connection_id, uint32
         }
 
         if (ret == 0) {
+            printf("data pointer was 0, skipping\n");
             continue;
         }
 
         if (dt->sent_time) {
+            printf("dt->sent_time, skipping\n");
             continue;
         }
 
@@ -1318,6 +1326,8 @@ static int send_requested_packets(Net_Crypto *c, int crypt_connection_id, uint32
                                     dt->length) == 0) {
             dt->sent_time = temp_time;
             ++num_sent;
+        } else {
+            printf("send_data_packet_helper failed\n");
         }
 
         if (num_sent >= max_num) {
@@ -1552,6 +1562,7 @@ static int handle_data_packet_core(Net_Crypto *c, int crypt_connection_id, const
     }
 
     if (real_data[0] == PACKET_ID_REQUEST) {
+        printf("hadnling request packets with rtt_time %lu\n", conn->rtt_time);
         int requested = handle_request_packet(c->mono_time, c->log, &conn->send_array, real_data, real_length, &rtt_calc_time,
                                               conn->rtt_time);
 
@@ -1608,6 +1619,7 @@ static int handle_data_packet_core(Net_Crypto *c, int crypt_connection_id, const
     if (rtt_calc_time != 0) {
         uint64_t rtt_time = current_time_monotonic(c->mono_time) - rtt_calc_time;
         conn->rtt_time = rtt_time;
+        printf("old rtt_time: %lu, new rtt_time: %lu, updating\n", conn->rtt_time, rtt_time);
     }
 
     return 0;
@@ -2599,6 +2611,7 @@ static void send_crypto_packets(Net_Crypto *c)
                 conn->last_packets_left_set = temp_time;
                 conn->packets_left_requested = CRYPTO_MIN_QUEUE_LENGTH;
                 conn->packets_left = CRYPTO_MIN_QUEUE_LENGTH;
+                printf("3: setting conn->packets_left to CRYPTO_MIN_QUEUE_LENGTH\n");
             } else {
                 if (((uint64_t)((1000.0 / conn->packet_send_rate) + 0.5) + conn->last_packets_left_set) <= temp_time) {
                     double n_packets = conn->packet_send_rate * (((double)(temp_time - conn->last_packets_left_set)) / 1000.0);
@@ -2609,8 +2622,10 @@ static void send_crypto_packets(Net_Crypto *c)
 
                     if (conn->packets_left > num_packets * 4 + CRYPTO_MIN_QUEUE_LENGTH) {
                         conn->packets_left = num_packets * 4 + CRYPTO_MIN_QUEUE_LENGTH;
+                        printf("1 set conn->packets_left to %d for some reason\n",conn->packets_left);
                     } else {
                         conn->packets_left += num_packets;
+                        printf("2 set conn->packets_left to %d for some reason\n",conn->packets_left);
                     }
 
                     conn->last_packets_left_set = temp_time;
@@ -2642,6 +2657,7 @@ static void send_crypto_packets(Net_Crypto *c)
                 conn->packets_left_requested -= ret;
                 conn->packets_resent += ret;
 
+                printf("send packets: ret %d packets_left %d\n",ret, conn->packets_left);
                 if ((unsigned int)ret < conn->packets_left) {
                     conn->packets_left -= ret;
                 } else {
@@ -2747,6 +2763,7 @@ int64_t write_cryptpacket(Net_Crypto *c, int crypt_connection_id, const uint8_t 
     }
 
     if (congestion_control) {
+        printf("sent packet, decreasing conn->packets_left at %d by one\n",conn->packets_left);
         --conn->packets_left;
         --conn->packets_left_requested;
         ++conn->packets_sent;

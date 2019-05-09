@@ -2587,11 +2587,17 @@ static void send_crypto_packets(Net_Crypto *c)
 
                     // TODO(irungentoo): Improve formula?
                     if (send_array_ratio > SEND_QUEUE_RATIO && CRYPTO_MIN_QUEUE_LENGTH < npackets) {
+                        printf("changing packet_send_rate from %f", conn->packet_send_rate);
                         conn->packet_send_rate = min_speed * (1.0 / (send_array_ratio / SEND_QUEUE_RATIO));
+                        printf(" to %f\n", conn->packet_send_rate);
                     } else if (conn->last_congestion_event + CONGESTION_EVENT_TIMEOUT < temp_time) {
+                        printf("increasing packet_send_rate from %f", conn->packet_send_rate);
                         conn->packet_send_rate = min_speed * 1.2;
+                        printf(" to %f\n", conn->packet_send_rate);
                     } else {
+                        printf("decreasing packet_send_rate from %f", conn->packet_send_rate);
                         conn->packet_send_rate = min_speed * 0.9;
+                        printf(" to %f\n", conn->packet_send_rate);
                     }
 
                     conn->packet_send_rate_requested = min_speed_request * 1.2;

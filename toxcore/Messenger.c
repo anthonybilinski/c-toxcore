@@ -1537,7 +1537,7 @@ static bool do_all_filetransfers(Messenger *m, int32_t friendnumber, void *userd
         // Any status other than NONE means the file transfer is active.
         if (ft->status != FILESTATUS_NONE) {
             any_active_fts = true;
-            printf("decreasing num from %d, by one\n",num);
+            // printf("decreasing num from %d, by one\n",num);
             --num;
 
             // If the file transfer is complete, we request a chunk of size 0.
@@ -1552,9 +1552,9 @@ static bool do_all_filetransfers(Messenger *m, int32_t friendnumber, void *userd
             }
 
             // Decrease free slots by the number of slots this FT uses.
-            printf("decreasing free slots from %d",*free_slots);
+            // printf("decreasing free slots from %d",*free_slots);
             *free_slots = max_s32(0, (int32_t) * free_slots - ft->slots_allocated);
-            printf(" to %d\n",*free_slots);
+            // printf(" to %d\n",*free_slots);
         }
 
         if (ft->status == FILESTATUS_TRANSFERRING && ft->paused == FILE_PAUSE_NOT) {
@@ -1619,7 +1619,7 @@ static void do_reqchunk_filecb(Messenger *m, int32_t friendnumber, void *userdat
                                   m->fr_c,
                                   m->friendlist[friendnumber].friendcon_id));
 
-    printf("free_slots for friend %d is %d\n",friendnumber, free_slots);
+    // printf("free_slots for friend %d is %d\n",friendnumber, free_slots);
     // We keep MIN_SLOTS_FREE slots free for other packets, otherwise file
     // transfers might block other traffic for a long time.
     free_slots = max_s32(0, (int32_t)free_slots - MIN_SLOTS_FREE);
@@ -1638,7 +1638,7 @@ static void do_reqchunk_filecb(Messenger *m, int32_t friendnumber, void *userdat
         any_active_fts = do_all_filetransfers(m, friendnumber, userdata, &free_slots);
         ++loop_counter;
     }
-    printf("do_reqchunk_filecb exiting with loop_coutner at %d\n",loop_counter);
+    // printf("do_reqchunk_filecb exiting with loop_coutner at %d\n",loop_counter);
 }
 
 

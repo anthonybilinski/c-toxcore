@@ -1008,7 +1008,7 @@ static int handle_request_packet(Mono_Time *mono_time, const Logger *log, Packet
         if (n == data[0]) {
             if (send_array->buffer[num]) {
                 uint64_t sent_time = send_array->buffer[num]->sent_time;
-                printf("sent_time: %lu, rtt_time: %lu, temp_time: %lu\n", sent_time, rtt_time, temp_time);
+                // printf("sent_time: %lu, rtt_time: %lu, temp_time: %lu\n", sent_time, rtt_time, temp_time);
                 if ((sent_time + rtt_time) < temp_time) {
                     printf("sent_time: %lu, rtt_time: %lu, temp_time: %lu\n",sent_time, rtt_time, temp_time);
                     send_array->buffer[num]->sent_time = 0;
@@ -1318,7 +1318,7 @@ static int send_requested_packets(Net_Crypto *c, int crypt_connection_id, uint32
         }
 
         if (dt->sent_time) {
-            printf("dt->sent_time, skipping\n");
+            // printf("dt->sent_time, skipping\n");
             continue;
         }
 
@@ -2559,6 +2559,7 @@ static void send_crypto_packets(Net_Crypto *c)
 
                     for (unsigned j = 0; j < CONGESTION_QUEUE_ARRAY_SIZE; ++j) {
                         unsigned int ind = (j + (packets_set_rem_array  - delay) + n_p_pos) % CONGESTION_LAST_SENT_ARRAY_SIZE;
+                        // if lots of packets passed RTT at once, last_num_packets_sent could be mostly empty?
                         total_sent += conn->last_num_packets_sent[ind];
                         total_resent += conn->last_num_packets_resent[ind];
                     }
@@ -2587,9 +2588,11 @@ static void send_crypto_packets(Net_Crypto *c)
 
                     // TODO(irungentoo): Improve formula?
                     if (send_array_ratio > SEND_QUEUE_RATIO && CRYPTO_MIN_QUEUE_LENGTH < npackets) {
+                        // if min_speed is low because some packets timed out, speed will shoot down
                         printf("changing packet_send_rate from %f", conn->packet_send_rate);
                         conn->packet_send_rate = min_speed * (1.0 / (send_array_ratio / SEND_QUEUE_RATIO));
                         printf(" to %f\n", conn->packet_send_rate);
+                        printf("npackets %d. minspeed %f. total_sent %ld",npackets, min_speed, total_sent);
                     } else if (conn->last_congestion_event + CONGESTION_EVENT_TIMEOUT < temp_time) {
                         printf("increasing packet_send_rate from %f", conn->packet_send_rate);
                         conn->packet_send_rate = min_speed * 1.2;
@@ -2663,7 +2666,7 @@ static void send_crypto_packets(Net_Crypto *c)
                 conn->packets_left_requested -= ret;
                 conn->packets_resent += ret;
 
-                printf("send packets: ret %d packets_left %d\n",ret, conn->packets_left);
+                // printf("send packets: ret %d packets_left %d\n",ret, conn->packets_left);
                 if ((unsigned int)ret < conn->packets_left) {
                     conn->packets_left -= ret;
                 } else {

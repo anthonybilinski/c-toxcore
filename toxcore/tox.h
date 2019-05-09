@@ -1770,7 +1770,7 @@ typedef enum TOX_ERR_FRIEND_SEND_MESSAGE {
  * The return value of this function is the message ID. If a read receipt is
  * received, the triggered `friend_read_receipt` event will be passed this message ID.
  *
- * Message IDs are unique per friend. The first message ID is 0. Message IDs are
+ * Message IDs are unique per friend. The first message ID is 1. Message IDs are
  * incremented by 1 each time a message is sent. If UINT32_MAX messages were
  * sent, the next message ID is 0.
  *

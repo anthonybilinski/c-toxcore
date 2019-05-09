@@ -1178,13 +1178,13 @@ long int new_filesender(const Messenger *m, int32_t friendnumber, uint32_t file_
     ft->requested = 0;
 
     ft->slots_allocated = 0;
-    printf("new_filesender setting ft->slots_allocated to 0\n");
 
     ft->paused = FILE_PAUSE_NOT;
 
     memcpy(ft->id, file_id, FILE_ID_LENGTH);
 
     ++m->friendlist[friendnumber].num_sending_files;
+    printf("new file, num_sending_files now %d\n", m->friendlist[friendnumber].num_sending_files);
 
     return i;
 }
@@ -1294,6 +1294,9 @@ int file_control(const Messenger *m, int32_t friendnumber, uint32_t filenumber, 
 
             if (send_receive == 0) {
                 --m->friendlist[friendnumber].num_sending_files;
+                printf("we got a FILECONTROL_KILL, recreased num sending to %d\n", m->friendlist[friendnumber].num_sending_files);
+            } else {
+                printf("we got a FILECONTROL_KILL while sending? wat?\n");
             }
         } else if (control == FILECONTROL_PAUSE) {
             ft->paused |= FILE_PAUSE_US;
@@ -1537,7 +1540,7 @@ static bool do_all_filetransfers(Messenger *m, int32_t friendnumber, void *userd
         // Any status other than NONE means the file transfer is active.
         if (ft->status != FILESTATUS_NONE) {
             any_active_fts = true;
-            printf("decreasing num from %d, by one\n",num);
+            // printf("decreasing num from %d, by one\n",num);
             --num;
 
             // If the file transfer is complete, we request a chunk of size 0.
@@ -1549,15 +1552,17 @@ static bool do_all_filetransfers(Messenger *m, int32_t friendnumber, void *userd
                 // Now it's inactive, we're no longer sending this.
                 ft->status = FILESTATUS_NONE;
                 --friendcon->num_sending_files;
+                printf("file transfer finished, num_sending_files now %d\n", friendcon->num_sending_files);
             }
 
             // Decrease free slots by the number of slots this FT uses.
-            printf("decreasing free slots from %d",*free_slots);
+            // printf("decreasing free slots from %d",*free_slots);
             *free_slots = max_s32(0, (int32_t) * free_slots - ft->slots_allocated);
-            printf(" to %d\n",*free_slots);
+            // printf(" to %d\n",*free_slots);
         }
 
         if (ft->status == FILESTATUS_TRANSFERRING && ft->paused == FILE_PAUSE_NOT) {
+            printf("transfering and not paused\n");
             if (max_speed_reached(m->net_crypto, friend_connection_crypt_connection_id(
                                       m->fr_c, friendcon->friendcon_id))) {
                 *free_slots = 0;
@@ -1594,6 +1599,8 @@ static bool do_all_filetransfers(Messenger *m, int32_t friendnumber, void *userd
 
             // The allocated slot is no longer free.
             --*free_slots;
+        } else {
+            // printf("ft->status is %d and ft->paused is %d\n", ft->status, ft->paused);
         }
 
         if (num == 0) {
@@ -1619,7 +1626,7 @@ static void do_reqchunk_filecb(Messenger *m, int32_t friendnumber, void *userdat
                                   m->fr_c,
                                   m->friendlist[friendnumber].friendcon_id));
 
-    printf("free_slots for friend %d is %d\n",friendnumber, free_slots);
+    // printf("free_slots for friend %d is %d\n",friendnumber, free_slots);
     // We keep MIN_SLOTS_FREE slots free for other packets, otherwise file
     // transfers might block other traffic for a long time.
     free_slots = max_s32(0, (int32_t)free_slots - MIN_SLOTS_FREE);
@@ -1638,7 +1645,7 @@ static void do_reqchunk_filecb(Messenger *m, int32_t friendnumber, void *userdat
         any_active_fts = do_all_filetransfers(m, friendnumber, userdata, &free_slots);
         ++loop_counter;
     }
-    printf("do_reqchunk_filecb exiting with loop_coutner at %d\n",loop_counter);
+    // printf("do_reqchunk_filecb exiting with loop_coutner at %d\n",loop_counter);
 }
 
 
@@ -1743,9 +1750,10 @@ static int handle_filecontrol(Messenger *m, int32_t friendnumber, uint8_t receiv
             }
 
             ft->status = FILESTATUS_NONE;
-
+            printf("FILECONTROL_KILL with receive_send %d\n",receive_send);
             if (receive_send) {
                 --m->friendlist[friendnumber].num_sending_files;
+                printf("decreased num_sending_files to %d\n",m->friendlist[friendnumber].num_sending_files);
             }
 
             return 0;

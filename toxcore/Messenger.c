@@ -1292,6 +1292,7 @@ int file_control(const Messenger *m, int32_t friendnumber, uint32_t filenumber, 
         if (control == FILECONTROL_KILL) {
             ft->status = FILESTATUS_NONE;
             --m->friendlist[friendnumber].num_sending_files;
+            printf("FILECONTROL_KILL, new num: %d\n", m->friendlist[friendnumber].num_sending_files);
         } else if (control == FILECONTROL_PAUSE) {
             ft->paused |= FILE_PAUSE_US;
         } else if (control == FILECONTROL_ACCEPT) {
@@ -1602,7 +1603,6 @@ static void do_reqchunk_filecb(Messenger *m, int32_t friendnumber, void *userdat
 {
     // We're not currently doing any file transfers.
     if (m->friendlist[friendnumber].num_sending_files == 0) {
-        printf("no files sending, returing\n");
         return;
     }
 
@@ -1632,7 +1632,8 @@ static void do_reqchunk_filecb(Messenger *m, int32_t friendnumber, void *userdat
         any_active_fts = do_all_filetransfers(m, friendnumber, userdata, &free_slots);
         ++loop_counter;
     }
-    printf("do_reqchunk_filecb exiting with loop_coutner at %d\n",loop_counter);
+    printf("%d",m->friendlist[friendnumber].num_sending_files);
+    // printf("any_active_fts? %d num_sending_files? %d\n",any_active_fts,m->friendlist[friendnumber].num_sending_files);
 }
 
 
@@ -1737,10 +1738,11 @@ static int handle_filecontrol(Messenger *m, int32_t friendnumber, uint8_t receiv
             }
 
             ft->status = FILESTATUS_NONE;
-            printf("FILECONTROL_KILL with receive_send %d\n",receive_send);
             if (receive_send) {
                 --m->friendlist[friendnumber].num_sending_files;
-                printf("decreased num_sending_files to %d\n",m->friendlist[friendnumber].num_sending_files);
+                printf("FILECONTROL_KILL decreased num_sending_files to %d\n",m->friendlist[friendnumber].num_sending_files);
+            } else {
+                printf("FILECONTROL_KILL but we're receiving? ignoring\n");
             }
 
             return 0;

@@ -1292,12 +1292,12 @@ int file_control(const Messenger *m, int32_t friendnumber, uint32_t filenumber, 
         if (control == FILECONTROL_KILL) {
             ft->status = FILESTATUS_NONE;
 
-            if (send_receive == 0) {
+            // if (send_receive == 0) {
                 --m->friendlist[friendnumber].num_sending_files;
                 printf("we got a FILECONTROL_KILL, recreased num sending to %d\n", m->friendlist[friendnumber].num_sending_files);
-            } else {
-                printf("we got a FILECONTROL_KILL while sending? wat?\n");
-            }
+            // } else {
+                // printf("we got a FILECONTROL_KILL while receiving? wat?\n");
+            // }
         } else if (control == FILECONTROL_PAUSE) {
             ft->paused |= FILE_PAUSE_US;
         } else if (control == FILECONTROL_ACCEPT) {
@@ -1750,10 +1750,11 @@ static int handle_filecontrol(Messenger *m, int32_t friendnumber, uint8_t receiv
             }
 
             ft->status = FILESTATUS_NONE;
-            printf("FILECONTROL_KILL with receive_send %d\n",receive_send);
             if (receive_send) {
                 --m->friendlist[friendnumber].num_sending_files;
                 printf("decreased num_sending_files to %d\n",m->friendlist[friendnumber].num_sending_files);
+            } else {
+                printf("got FILECONTROL_KILL while receiving. wat?");
             }
 
             return 0;

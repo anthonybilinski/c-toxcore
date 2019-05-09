@@ -1291,8 +1291,10 @@ int file_control(const Messenger *m, int32_t friendnumber, uint32_t filenumber, 
     if (send_file_control_packet(m, friendnumber, send_receive, file_number, control, nullptr, 0)) {
         if (control == FILECONTROL_KILL) {
             ft->status = FILESTATUS_NONE;
-            --m->friendlist[friendnumber].num_sending_files;
-            printf("FILECONTROL_KILL, new num: %d\n", m->friendlist[friendnumber].num_sending_files);
+            if (send_receive == 0) {
+                --m->friendlist[friendnumber].num_sending_files;
+                printf("FILECONTROL_KILL, new num: %d\n", m->friendlist[friendnumber].num_sending_files);
+            }
         } else if (control == FILECONTROL_PAUSE) {
             ft->paused |= FILE_PAUSE_US;
         } else if (control == FILECONTROL_ACCEPT) {

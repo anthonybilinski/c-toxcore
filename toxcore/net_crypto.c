@@ -35,6 +35,7 @@
 
 #include "mono_time.h"
 #include "util.h"
+#include <stdio.h>
 
 typedef struct Packet_Data {
     uint64_t sent_time;
@@ -995,6 +996,8 @@ static int handle_request_packet(Mono_Time *mono_time, const Logger *log, Packet
 
     const uint64_t temp_time = current_time_monotonic(mono_time);
     uint64_t l_sent_time = 0;
+    int numReset = 0;
+    int numReceived = 0;
 
     for (uint32_t i = send_array->buffer_start; i != send_array->buffer_end; ++i) {
         if (length == 0) {
@@ -1008,6 +1011,7 @@ static int handle_request_packet(Mono_Time *mono_time, const Logger *log, Packet
                 uint64_t sent_time = send_array->buffer[num]->sent_time;
 
                 if ((sent_time + rtt_time) < temp_time) {
+                    ++numReset;
                     send_array->buffer[num]->sent_time = 0;
                 }
             }
@@ -1023,7 +1027,7 @@ static int handle_request_packet(Mono_Time *mono_time, const Logger *log, Packet
                 if (l_sent_time < sent_time) {
                     l_sent_time = sent_time;
                 }
-
+                ++numReceived;
                 free(send_array->buffer[num]);
                 send_array->buffer[num] = nullptr;
             }
@@ -1033,6 +1037,7 @@ static int handle_request_packet(Mono_Time *mono_time, const Logger *log, Packet
             n = 1;
 
             if (data[0] != 0) {
+                printf("1 RR: %d dropped, %d received\n",numReset,numReceived);
                 return -1;
             }
 
@@ -1042,6 +1047,7 @@ static int handle_request_packet(Mono_Time *mono_time, const Logger *log, Packet
             ++n;
         }
     }
+    printf("2 RR: %d dropped, %d received\n",numReset,numReceived);
 
     if (*latest_send_time < l_sent_time) {
         *latest_send_time = l_sent_time;
@@ -2575,7 +2581,9 @@ static void send_crypto_packets(Net_Crypto *c)
 
                     // TODO(irungentoo): Improve formula?
                     if (send_array_ratio > SEND_QUEUE_RATIO && CRYPTO_MIN_QUEUE_LENGTH < npackets) {
+                        printf("send_rate changed from %f to", conn->packet_send_rate);
                         conn->packet_send_rate = min_speed * (1.0 / (send_array_ratio / SEND_QUEUE_RATIO));
+                        printf(" %f with total_sent %ld and min_speed %f\n",conn->packet_send_rate, total_sent, min_speed);
                     } else if (conn->last_congestion_event + CONGESTION_EVENT_TIMEOUT < temp_time) {
                         conn->packet_send_rate = min_speed * 1.2;
                     } else {

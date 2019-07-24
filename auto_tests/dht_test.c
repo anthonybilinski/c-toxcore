@@ -1,19 +1,11 @@
-#ifndef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
-#endif
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
 #include "check_compat.h"
-
-#include <sys/param.h>
-#include <time.h>
-
-#include "helpers.h"
-
+#include "../testing/misc_tools.h"
 #include "../toxcore/crypto_core.h"
+
 #ifndef DHT_C_INCLUDED
 #include "../toxcore/DHT.c"
 #endif // DHT_C_INCLUDED
@@ -27,52 +19,52 @@ static bool enable_broken_tests = false;
 #define USE_IPV6 1
 #endif
 
-static inline IP get_loopback()
+static inline IP get_loopback(void)
 {
     IP ip;
 #if USE_IPV6
-    ip.family = TOX_AF_INET6;
+    ip.family = net_family_ipv6;
     ip.ip.v6 = get_ip6_loopback();
 #else
-    ip.family = TOX_AF_INET;
+    ip.family = net_family_ipv4;
     ip.ip.v4 = get_ip4_loopback();
 #endif
     return ip;
 }
 
-static void mark_bad(IPPTsPng *ipptp)
+static void mark_bad(const Mono_Time *mono_time, IPPTsPng *ipptp)
 {
-    ipptp->timestamp = unix_time() - 2 * BAD_NODE_TIMEOUT;
+    ipptp->timestamp = mono_time_get(mono_time) - 2 * BAD_NODE_TIMEOUT;
     ipptp->hardening.routes_requests_ok = 0;
     ipptp->hardening.send_nodes_ok = 0;
     ipptp->hardening.testing_requests = 0;
 }
 
-static void mark_possible_bad(IPPTsPng *ipptp)
+static void mark_possible_bad(const Mono_Time *mono_time, IPPTsPng *ipptp)
 {
-    ipptp->timestamp = unix_time();
+    ipptp->timestamp = mono_time_get(mono_time);
     ipptp->hardening.routes_requests_ok = 0;
     ipptp->hardening.send_nodes_ok = 0;
     ipptp->hardening.testing_requests = 0;
 }
 
-static void mark_good(IPPTsPng *ipptp)
+static void mark_good(const Mono_Time *mono_time, IPPTsPng *ipptp)
 {
-    ipptp->timestamp = unix_time();
+    ipptp->timestamp = mono_time_get(mono_time);
     ipptp->hardening.routes_requests_ok = (HARDENING_ALL_OK >> 0) & 1;
     ipptp->hardening.send_nodes_ok = (HARDENING_ALL_OK >> 1) & 1;
     ipptp->hardening.testing_requests = (HARDENING_ALL_OK >> 2) & 1;
 }
 
-static void mark_all_good(Client_data *list, uint32_t length, uint8_t ipv6)
+static void mark_all_good(const Mono_Time *mono_time, Client_data *list, uint32_t length, uint8_t ipv6)
 {
     uint32_t i;
 
     for (i = 0; i < length; ++i) {
         if (ipv6) {
-            mark_good(&list[i].assoc6);
+            mark_good(mono_time, &list[i].assoc6);
         } else {
-            mark_good(&list[i].assoc4);
+            mark_good(mono_time, &list[i].assoc4);
         }
     }
 }
@@ -94,9 +86,9 @@ static uint8_t is_furthest(const uint8_t *comp_client_id, Client_data *list, uin
 
 static int client_in_list(Client_data *list, uint32_t length, const uint8_t *public_key)
 {
-    int i;
+    uint32_t i;
 
-    for (i = 0; i < (int)length; ++i) {
+    for (i = 0; i < length; ++i) {
         if (id_equal(public_key, list[i].public_key)) {
             return i;
         }
@@ -110,10 +102,10 @@ static void test_addto_lists_update(DHT            *dht,
                                     uint32_t        length,
                                     IP_Port        *ip_port)
 {
-    int used, test, test1, test2, found;
+    uint32_t used, test, test1, test2, found;
     IP_Port test_ipp;
     uint8_t test_id[CRYPTO_PUBLIC_KEY_SIZE];
-    uint8_t ipv6 = ip_port->ip.family == TOX_AF_INET6 ? 1 : 0;
+    uint8_t ipv6 = net_family_is_ipv6(ip_port->ip.family) ? 1 : 0;
 
     // check id update for existing ip_port
     test = random_u32() % length;
@@ -188,10 +180,10 @@ static void test_addto_lists_bad(DHT            *dht,
     int used, test1, test2, test3;
     uint8_t public_key[CRYPTO_PUBLIC_KEY_SIZE], test_id1[CRYPTO_PUBLIC_KEY_SIZE], test_id2[CRYPTO_PUBLIC_KEY_SIZE],
             test_id3[CRYPTO_PUBLIC_KEY_SIZE];
-    uint8_t ipv6 = ip_port->ip.family == TOX_AF_INET6 ? 1 : 0;
+    uint8_t ipv6 = net_family_is_ipv6(ip_port->ip.family) ? 1 : 0;
 
     random_bytes(public_key, sizeof(public_key));
-    mark_all_good(list, length, ipv6);
+    mark_all_good(dht->mono_time, list, length, ipv6);
 
     test1 = random_u32() % (length / 3);
     test2 = random_u32() % (length / 3) + length / 3;
@@ -204,13 +196,13 @@ static void test_addto_lists_bad(DHT            *dht,
 
     // mark nodes as "bad"
     if (ipv6) {
-        mark_bad(&list[test1].assoc6);
-        mark_bad(&list[test2].assoc6);
-        mark_bad(&list[test3].assoc6);
+        mark_bad(dht->mono_time, &list[test1].assoc6);
+        mark_bad(dht->mono_time, &list[test2].assoc6);
+        mark_bad(dht->mono_time, &list[test3].assoc6);
     } else {
-        mark_bad(&list[test1].assoc4);
-        mark_bad(&list[test2].assoc4);
-        mark_bad(&list[test3].assoc4);
+        mark_bad(dht->mono_time, &list[test1].assoc4);
+        mark_bad(dht->mono_time, &list[test2].assoc4);
+        mark_bad(dht->mono_time, &list[test3].assoc4);
     }
 
     ip_port->port += 1;
@@ -229,13 +221,13 @@ static void test_addto_lists_possible_bad(DHT            *dht,
         const uint8_t  *comp_client_id)
 {
     // check "possibly bad" clients replacement
-    int used, test1, test2, test3;
+    uint32_t used, test1, test2, test3;
     uint8_t public_key[CRYPTO_PUBLIC_KEY_SIZE], test_id1[CRYPTO_PUBLIC_KEY_SIZE], test_id2[CRYPTO_PUBLIC_KEY_SIZE],
             test_id3[CRYPTO_PUBLIC_KEY_SIZE];
-    uint8_t ipv6 = ip_port->ip.family == TOX_AF_INET6 ? 1 : 0;
+    uint8_t ipv6 = net_family_is_ipv6(ip_port->ip.family) ? 1 : 0;
 
     random_bytes(public_key, sizeof(public_key));
-    mark_all_good(list, length, ipv6);
+    mark_all_good(dht->mono_time, list, length, ipv6);
 
     test1 = random_u32() % (length / 3);
     test2 = random_u32() % (length / 3) + length / 3;
@@ -248,13 +240,13 @@ static void test_addto_lists_possible_bad(DHT            *dht,
 
     // mark nodes as "possibly bad"
     if (ipv6) {
-        mark_possible_bad(&list[test1].assoc6);
-        mark_possible_bad(&list[test2].assoc6);
-        mark_possible_bad(&list[test3].assoc6);
+        mark_possible_bad(dht->mono_time, &list[test1].assoc6);
+        mark_possible_bad(dht->mono_time, &list[test2].assoc6);
+        mark_possible_bad(dht->mono_time, &list[test3].assoc6);
     } else {
-        mark_possible_bad(&list[test1].assoc4);
-        mark_possible_bad(&list[test2].assoc4);
-        mark_possible_bad(&list[test3].assoc4);
+        mark_possible_bad(dht->mono_time, &list[test1].assoc4);
+        mark_possible_bad(dht->mono_time, &list[test2].assoc4);
+        mark_possible_bad(dht->mono_time, &list[test3].assoc4);
     }
 
     ip_port->port += 1;
@@ -263,9 +255,9 @@ static void test_addto_lists_possible_bad(DHT            *dht,
 
     ck_assert_msg(client_in_list(list, length, public_key) >= 0, "Client id is not in the list");
 
-    int inlist_id1 = client_in_list(list, length, test_id1) >= 0;
-    int inlist_id2 = client_in_list(list, length, test_id2) >= 0;
-    int inlist_id3 = client_in_list(list, length, test_id3) >= 0;
+    bool inlist_id1 = client_in_list(list, length, test_id1) >= 0;
+    bool inlist_id2 = client_in_list(list, length, test_id2) >= 0;
+    bool inlist_id3 = client_in_list(list, length, test_id3) >= 0;
 
     ck_assert_msg(inlist_id1 + inlist_id2 + inlist_id3 == 2, "Wrong client removed");
 
@@ -294,9 +286,9 @@ static void test_addto_lists_good(DHT            *dht,
                                   const uint8_t  *comp_client_id)
 {
     uint8_t public_key[CRYPTO_PUBLIC_KEY_SIZE];
-    uint8_t ipv6 = ip_port->ip.family == TOX_AF_INET6 ? 1 : 0;
+    uint8_t ipv6 = net_family_is_ipv6(ip_port->ip.family) ? 1 : 0;
 
-    mark_all_good(list, length, ipv6);
+    mark_all_good(dht->mono_time, list, length, ipv6);
 
     // check "good" client id replacement
     do {
@@ -327,17 +319,20 @@ static void test_addto_lists(IP ip)
     uint32_t index = 1;
     logger_callback_log(log, (logger_cb *)print_debug_log, nullptr, &index);
 
+    Mono_Time *mono_time = mono_time_new();
+    ck_assert_msg(mono_time != nullptr, "Failed to create Mono_Time");
+
     Networking_Core *net = new_networking(log, ip, TOX_PORT_DEFAULT);
     ck_assert_msg(net != nullptr, "Failed to create Networking_Core");
 
-    DHT *dht = new_DHT(log, net, true);
+    DHT *dht = new_dht(log, mono_time, net, true);
     ck_assert_msg(dht != nullptr, "Failed to create DHT");
 
     IP_Port ip_port;
     ip_port.ip = ip;
     ip_port.port = TOX_PORT_DEFAULT;
     uint8_t public_key[CRYPTO_PUBLIC_KEY_SIZE];
-    int i, used;
+    uint16_t i, used;
 
     // check lists filling
     for (i = 0; i < MAX(LCLIENT_LIST, MAX_FRIEND_CLIENTS); ++i) {
@@ -387,31 +382,31 @@ static void test_addto_lists(IP ip)
     // check "good" entries
     test_addto_lists_good(dht, dht->close_clientlist, LCLIENT_LIST, &ip_port, dht->self_public_key);
 
-    for (i = 0; i < dht->num_friends; ++i)
+    for (i = 0; i < dht->num_friends; ++i) {
         test_addto_lists_good(dht, dht->friends_list[i].client_list, MAX_FRIEND_CLIENTS, &ip_port,
                               dht->friends_list[i].public_key);
+    }
 
-    kill_DHT(dht);
+    kill_dht(dht);
     kill_networking(net);
+    logger_kill(log);
 }
 
-START_TEST(test_addto_lists_ipv4)
+static void test_addto_lists_ipv4(void)
 {
     IP ip;
     ip_init(&ip, 0);
     test_addto_lists(ip);
 }
-END_TEST
 
-START_TEST(test_addto_lists_ipv6)
+static void test_addto_lists_ipv6(void)
 {
     IP ip;
     ip_init(&ip, 1);
     test_addto_lists(ip);
 }
-END_TEST
 
-#define DHT_DEFAULT_PORT (TOX_PORT_DEFAULT + 20)
+#define DHT_DEFAULT_PORT (TOX_PORT_DEFAULT + 1000)
 
 static void print_pk(uint8_t *public_key)
 {
@@ -425,11 +420,11 @@ static void print_pk(uint8_t *public_key)
 }
 
 static void test_add_to_list(uint8_t cmp_list[][CRYPTO_PUBLIC_KEY_SIZE + 1],
-                             unsigned int length, const uint8_t *pk,
+                             uint16_t length, const uint8_t *pk,
                              const uint8_t *cmp_pk)
 {
     uint8_t p_b[CRYPTO_PUBLIC_KEY_SIZE];
-    unsigned int i;
+    uint16_t i;
 
     for (i = 0; i < length; ++i) {
         if (!cmp_list[i][CRYPTO_PUBLIC_KEY_SIZE]) {
@@ -458,34 +453,39 @@ static void test_add_to_list(uint8_t cmp_list[][CRYPTO_PUBLIC_KEY_SIZE + 1],
 static void test_list_main(void)
 {
     DHT *dhts[NUM_DHT];
+    Logger *logs[NUM_DHT];
+    Mono_Time *mono_times[NUM_DHT];
     uint32_t index[NUM_DHT];
 
     uint8_t cmp_list1[NUM_DHT][MAX_FRIEND_CLIENTS][CRYPTO_PUBLIC_KEY_SIZE + 1];
     memset(cmp_list1, 0, sizeof(cmp_list1));
 
-    unsigned int i, j, k, l;
+    uint16_t i, j, k, l;
 
     for (i = 0; i < NUM_DHT; ++i) {
         IP ip;
         ip_init(&ip, 1);
 
-        Logger *log = logger_new();
+        logs[i] = logger_new();
         index[i] = i + 1;
-        logger_callback_log(log, (logger_cb *)print_debug_log, nullptr, &index[i]);
+        logger_callback_log(logs[i], (logger_cb *)print_debug_log, nullptr, &index[i]);
 
-        dhts[i] = new_DHT(log, new_networking(log, ip, DHT_DEFAULT_PORT + i), true);
+        mono_times[i] = mono_time_new();
+
+        dhts[i] = new_dht(logs[i], mono_times[i], new_networking(logs[i], ip, DHT_DEFAULT_PORT + i), true);
         ck_assert_msg(dhts[i] != nullptr, "Failed to create dht instances %u", i);
-        ck_assert_msg(net_port(dhts[i]->net) != DHT_DEFAULT_PORT + i, "Bound to wrong port");
+        ck_assert_msg(net_port(dhts[i]->net) != DHT_DEFAULT_PORT + i,
+                      "Bound to wrong port: %d", net_port(dhts[i]->net));
     }
 
-    for (j = 0; j < NUM_DHT; ++j) {
-        for (i = 1; i < NUM_DHT; ++i) {
-            test_add_to_list(cmp_list1[j], MAX_FRIEND_CLIENTS, dhts[(i + j) % NUM_DHT]->self_public_key, dhts[j]->self_public_key);
+    for (i = 0; i < NUM_DHT; ++i) {
+        for (j = 1; j < NUM_DHT; ++j) {
+            test_add_to_list(cmp_list1[i], MAX_FRIEND_CLIENTS, dhts[(i + j) % NUM_DHT]->self_public_key, dhts[i]->self_public_key);
         }
     }
 
-    for (j = 0; j < NUM_DHT; ++j) {
-        for (i = 0; i < NUM_DHT; ++i) {
+    for (i = 0; i < NUM_DHT; ++i) {
+        for (j = 0; j < NUM_DHT; ++j) {
             if (i == j) {
                 continue;
             }
@@ -495,7 +495,7 @@ static void test_list_main(void)
             ip_port.ip.ip.v4.uint32 = random_u32();
             ip_port.port = random_u32() % (UINT16_MAX - 1);
             ++ip_port.port;
-            addto_lists(dhts[j], ip_port, dhts[i]->self_public_key);
+            addto_lists(dhts[i], ip_port, dhts[j]->self_public_key);
         }
     }
 
@@ -509,7 +509,7 @@ static void test_list_main(void)
     }
 
 #endif
-    unsigned int m_count = 0;
+    uint16_t m_count = 0;
 
     for (l = 0; l < NUM_DHT; ++l) {
         for (i = 0; i < MAX_FRIEND_CLIENTS; ++i) {
@@ -518,7 +518,7 @@ static void test_list_main(void)
                     continue;
                 }
 
-                unsigned int count = 0;
+                uint16_t count = 0;
 
                 for (k = 0; k < LCLIENT_LIST; ++k) {
                     if (memcmp(dhts[l]->self_public_key, dhts[(l + j) % NUM_DHT]->close_clientlist[k].public_key,
@@ -547,7 +547,7 @@ static void test_list_main(void)
                 ck_assert_msg(count == 1, "Nodes in search don't know ip of friend. %u %u %u", i, j, count);
 
                 Node_format ln[MAX_SENT_NODES];
-                int n = get_close_nodes(dhts[(l + j) % NUM_DHT], dhts[l]->self_public_key, ln, 0, 1, 0);
+                uint16_t n = get_close_nodes(dhts[(l + j) % NUM_DHT], dhts[l]->self_public_key, ln, net_family_unspec, 1, 0);
                 ck_assert_msg(n == MAX_SENT_NODES, "bad num close %u | %u %u", n, i, j);
 
                 count = 0;
@@ -577,21 +577,22 @@ static void test_list_main(void)
 
     for (i = 0; i < NUM_DHT; ++i) {
         Networking_Core *n = dhts[i]->net;
-        kill_DHT(dhts[i]);
+        kill_dht(dhts[i]);
         kill_networking(n);
+        mono_time_free(mono_times[i]);
+        logger_kill(logs[i]);
     }
 }
 
 
-START_TEST(test_list)
+static void test_list(void)
 {
-    unsigned int i;
+    uint8_t i;
 
     for (i = 0; i < 10; ++i) {
         test_list_main();
     }
 }
-END_TEST
 
 static void ip_callback(void *data, int32_t number, IP_Port ip_port)
 {
@@ -599,23 +600,36 @@ static void ip_callback(void *data, int32_t number, IP_Port ip_port)
 
 #define NUM_DHT_FRIENDS 20
 
-START_TEST(test_DHT_test)
+static uint64_t get_clock_callback(Mono_Time *mono_time, void *user_data)
+{
+    const uint64_t *clock = (const uint64_t *)user_data;
+    return *clock;
+}
+
+static void test_DHT_test(void)
 {
     uint32_t to_comp = 8394782;
     DHT *dhts[NUM_DHT];
+    Logger *logs[NUM_DHT];
+    Mono_Time *mono_times[NUM_DHT];
+    uint64_t clock[NUM_DHT];
     uint32_t index[NUM_DHT];
 
-    unsigned int i, j;
+    uint32_t i, j;
 
     for (i = 0; i < NUM_DHT; ++i) {
         IP ip;
         ip_init(&ip, 1);
 
-        Logger *log = logger_new();
+        logs[i] = logger_new();
         index[i] = i + 1;
-        logger_callback_log(log, (logger_cb *)print_debug_log, nullptr, &index[i]);
+        logger_callback_log(logs[i], (logger_cb *)print_debug_log, nullptr, &index[i]);
 
-        dhts[i] = new_DHT(log, new_networking(log, ip, DHT_DEFAULT_PORT + i), true);
+        mono_times[i] = mono_time_new();
+        clock[i] = current_time_monotonic(mono_times[i]);
+        mono_time_set_current_time_callback(mono_times[i], get_clock_callback, &clock[i]);
+
+        dhts[i] = new_dht(logs[i], mono_times[i], new_networking(logs[i], ip, DHT_DEFAULT_PORT + i), true);
         ck_assert_msg(dhts[i] != nullptr, "Failed to create dht instances %u", i);
         ck_assert_msg(net_port(dhts[i]->net) != DHT_DEFAULT_PORT + i, "Bound to wrong port");
     }
@@ -626,6 +640,7 @@ START_TEST(test_DHT_test)
     } pairs[NUM_DHT_FRIENDS];
 
     for (i = 0; i < NUM_DHT_FRIENDS; ++i) {
+        // TODO(hugbubby): remove use of goto.
 loop_top:
         pairs[i].tox1 = random_u32() % NUM_DHT;
         pairs[i].tox2 = (pairs[i].tox1 + (random_u32() % (NUM_DHT - 1)) + 1) % NUM_DHT;
@@ -637,7 +652,7 @@ loop_top:
         }
 
         uint16_t lock_count = 0;
-        ck_assert_msg(DHT_addfriend(dhts[pairs[i].tox2], dhts[pairs[i].tox1]->self_public_key, &ip_callback, &to_comp, 1337,
+        ck_assert_msg(dht_addfriend(dhts[pairs[i].tox2], dhts[pairs[i].tox1]->self_public_key, &ip_callback, &to_comp, 1337,
                                     &lock_count) == 0, "Failed to add friend");
         ck_assert_msg(lock_count == 1, "bad lock count: %u %u", lock_count, i);
     }
@@ -646,16 +661,16 @@ loop_top:
         IP_Port ip_port;
         ip_port.ip = get_loopback();
         ip_port.port = net_htons(DHT_DEFAULT_PORT + i);
-        DHT_bootstrap(dhts[(i - 1) % NUM_DHT], ip_port, dhts[i]->self_public_key);
+        dht_bootstrap(dhts[(i - 1) % NUM_DHT], ip_port, dhts[i]->self_public_key);
     }
 
-    while (1) {
+    while (true) {
         uint16_t counter = 0;
 
         for (i = 0; i < NUM_DHT_FRIENDS; ++i) {
             IP_Port a;
 
-            if (DHT_getfriendip(dhts[pairs[i].tox2], dhts[pairs[i].tox1]->self_public_key, &a) == 1) {
+            if (dht_getfriendip(dhts[pairs[i].tox2], dhts[pairs[i].tox1]->self_public_key, &a) == 1) {
                 ++counter;
             }
         }
@@ -665,22 +680,25 @@ loop_top:
         }
 
         for (i = 0; i < NUM_DHT; ++i) {
+            mono_time_update(mono_times[i]);
             networking_poll(dhts[i]->net, nullptr);
-            do_DHT(dhts[i]);
+            do_dht(dhts[i]);
+            clock[i] += 500;
         }
 
-        c_sleep(500);
+        c_sleep(20);
     }
 
     for (i = 0; i < NUM_DHT; ++i) {
         Networking_Core *n = dhts[i]->net;
-        kill_DHT(dhts[i]);
+        kill_dht(dhts[i]);
         kill_networking(n);
+        mono_time_free(mono_times[i]);
+        logger_kill(logs[i]);
     }
 }
-END_TEST
 
-START_TEST(test_dht_create_packet)
+static void test_dht_create_packet(void)
 {
     uint8_t plain[100] = {0};
     uint8_t pkt[1 + CRYPTO_PUBLIC_KEY_SIZE + CRYPTO_NONCE_SIZE + sizeof(plain) + CRYPTO_MAC_SIZE];
@@ -688,7 +706,7 @@ START_TEST(test_dht_create_packet)
     uint8_t key[CRYPTO_SYMMETRIC_KEY_SIZE];
     new_symmetric_key(key);
 
-    int length = DHT_create_packet(key, key, NET_PACKET_GET_NODES, plain, sizeof(plain), pkt);
+    uint16_t length = dht_create_packet(key, key, NET_PACKET_GET_NODES, plain, sizeof(plain), pkt);
 
     ck_assert_msg(pkt[0] == NET_PACKET_GET_NODES, "Malformed packet.");
     ck_assert_msg(memcmp(pkt + 1, key, CRYPTO_SYMMETRIC_KEY_SIZE) == 0, "Malformed packet.");
@@ -697,20 +715,19 @@ START_TEST(test_dht_create_packet)
 
     printf("Create Packet Successful!\n");
 }
-END_TEST
 
 #define MAX_COUNT 3
 
 static void dht_pack_unpack(const Node_format *nodes, size_t size, uint8_t *data, size_t length)
 {
-    int packed_size = pack_nodes(data, length, nodes, size);
+    int16_t packed_size = pack_nodes(data, length, nodes, size);
     ck_assert_msg(packed_size != -1, "Wrong pack_nodes result");
 
     uint16_t processed = 0;
     VLA(Node_format, nodes_unpacked, size);
     const uint8_t tcp_enabled = 1;
 
-    int unpacked_count = unpack_nodes(nodes_unpacked, size, &processed, data, length, tcp_enabled);
+    uint16_t unpacked_count = unpack_nodes(nodes_unpacked, size, &processed, data, length, tcp_enabled);
     ck_assert_msg(unpacked_count == size, "Wrong unpack_nodes result");
     ck_assert_msg(processed == packed_size, "unpack_nodes did not process all data");
 
@@ -744,13 +761,13 @@ static void random_ip(IP_Port *ipp, int family)
     uint8_t *port = (uint8_t *)&ipp->port;
     random_bytes(port, sizeof(ipp->port));
     random_bytes(ip, size);
-    ipp->ip.family = family;
-
+    // TODO(iphydf): Pass the net_family variant to random_ip.
+    ipp->ip.family.value = family;
 }
 
 #define PACKED_NODES_SIZE (SIZE_IPPORT + CRYPTO_PUBLIC_KEY_SIZE)
 
-START_TEST(test_dht_node_packing)
+static void test_dht_node_packing(void)
 {
     const uint16_t length = MAX_COUNT * PACKED_NODES_SIZE;
     uint8_t *data = (uint8_t *)malloc(length);
@@ -789,39 +806,21 @@ START_TEST(test_dht_node_packing)
 
     free(data);
 }
-END_TEST
-
-static Suite *dht_suite(void)
-{
-    Suite *s = suite_create("DHT");
-    DEFTESTCASE(dht_create_packet);
-    DEFTESTCASE(dht_node_packing);
-
-    DEFTESTCASE_SLOW(list, 20);
-    DEFTESTCASE_SLOW(DHT_test, 50);
-
-    if (enable_broken_tests) {
-        DEFTESTCASE(addto_lists_ipv4);
-        DEFTESTCASE(addto_lists_ipv6);
-    }
-
-    return s;
-}
 
 int main(void)
 {
     setvbuf(stdout, nullptr, _IONBF, 0);
-    srand((unsigned int) time(nullptr));
 
-    Suite *dht = dht_suite();
-    SRunner *test_runner = srunner_create(dht);
+    test_dht_create_packet();
+    test_dht_node_packing();
 
-    int number_failed = 0;
-    //srunner_set_fork_status(test_runner, CK_NOFORK);
-    srunner_run_all(test_runner, CK_NORMAL);
-    number_failed = srunner_ntests_failed(test_runner);
+    test_list();
+    test_DHT_test();
 
-    srunner_free(test_runner);
+    if (enable_broken_tests) {
+        test_addto_lists_ipv4();
+        test_addto_lists_ipv6();
+    }
 
-    return number_failed;
+    return 0;
 }

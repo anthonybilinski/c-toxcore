@@ -1,6 +1,6 @@
 %{
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013-2015 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -18,8 +18,8 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TOXAV_H
-#define TOXAV_H
+#ifndef C_TOXCORE_TOXAV_TOXAV_H
+#define C_TOXCORE_TOXAV_TOXAV_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -605,6 +605,10 @@ namespace video {
 %{
 /**
  * NOTE Compatibility with old toxav group calls. TODO(iphydf): remove
+ *
+ * TODO(iphydf): Use proper new API guidelines for these. E.g. don't use inline
+ * function types, don't have per-callback userdata, especially don't have one
+ * userdata per group.
  */
 /* Create a new toxav group.
  *
@@ -616,8 +620,9 @@ namespace video {
  *
  * Note that total size of pcm in bytes is equal to (samples * channels * sizeof(int16_t)).
  */
-int toxav_add_av_groupchat(Tox *tox, void (*audio_callback)(void *, uint32_t, uint32_t, const int16_t *, unsigned int, uint8_t,
-                           uint32_t, void *), void *userdata);
+int toxav_add_av_groupchat(Tox *tox,
+                           void (*audio_callback)(void *, uint32_t, uint32_t, const int16_t *, unsigned int, uint8_t, uint32_t, void *),
+                           void *userdata);
 
 /* Join a AV group (you need to have been invited first.)
  *
@@ -630,7 +635,8 @@ int toxav_add_av_groupchat(Tox *tox, void (*audio_callback)(void *, uint32_t, ui
  * Note that total size of pcm in bytes is equal to (samples * channels * sizeof(int16_t)).
  */
 int toxav_join_av_groupchat(Tox *tox, uint32_t friendnumber, const uint8_t *data, uint16_t length,
-                            void (*audio_callback)(void *, uint32_t, uint32_t, const int16_t *, unsigned int, uint8_t, uint32_t, void *), void *userdata);
+                            void (*audio_callback)(void *, uint32_t, uint32_t, const int16_t *, unsigned int, uint8_t, uint32_t, void *),
+                            void *userdata);
 
 /* Send audio to the group chat.
  *
@@ -648,8 +654,52 @@ int toxav_join_av_groupchat(Tox *tox, uint32_t friendnumber, const uint8_t *data
 int toxav_group_send_audio(Tox *tox, uint32_t groupnumber, const int16_t *pcm, unsigned int samples, uint8_t channels,
                            uint32_t sample_rate);
 
+/* Enable A/V in a groupchat.
+ *
+ * A/V must be enabled on a groupchat for audio to be sent to it and for
+ * received audio to be handled.
+ *
+ * An A/V group created with toxav_add_av_groupchat or toxav_join_av_groupchat
+ * will start with A/V enabled.
+ *
+ * An A/V group loaded from a savefile will start with A/V disabled.
+ *
+ * return 0 on success.
+ * return -1 on failure.
+ *
+ * Audio data callback format (same as the one for toxav_add_av_groupchat()):
+ *   audio_callback(Tox *tox, uint32_t groupnumber, uint32_t peernumber, const int16_t *pcm, unsigned int samples, uint8_t channels, uint32_t sample_rate, void *userdata)
+ *
+ * Note that total size of pcm in bytes is equal to (samples * channels * sizeof(int16_t)).
+ */
+int toxav_groupchat_enable_av(Tox *tox, uint32_t groupnumber,
+                              void (*audio_callback)(void *, uint32_t, uint32_t, const int16_t *, unsigned int, uint8_t, uint32_t, void *),
+                              void *userdata);
+
+/* Disable A/V in a groupchat.
+ *
+ * return 0 on success.
+ * return -1 on failure.
+ */
+int toxav_groupchat_disable_av(Tox *tox, uint32_t groupnumber);
+
+/* Return whether A/V is enabled in the groupchat.
+ */
+bool toxav_groupchat_av_enabled(Tox *tox, uint32_t groupnumber);
+
 #ifdef __cplusplus
 }
 #endif
-#endif /* TOXAV_H */
+
+typedef void toxav_group_audio_cb(Tox *tox, uint32_t groupnumber, uint32_t peernumber, const int16_t *pcm, uint32_t samples, uint8_t channels, uint32_t sample_rate, void *user_data);
+
+typedef TOXAV_ERR_CALL Toxav_Err_Call;
+typedef TOXAV_ERR_NEW Toxav_Err_New;
+typedef TOXAV_ERR_ANSWER Toxav_Err_Answer;
+typedef TOXAV_ERR_CALL_CONTROL Toxav_Err_Call_Control;
+typedef TOXAV_ERR_BIT_RATE_SET Toxav_Err_Bit_Rate_Set;
+typedef TOXAV_ERR_SEND_FRAME Toxav_Err_Send_Frame;
+typedef TOXAV_CALL_CONTROL Toxav_Call_Control;
+
+#endif // C_TOXCORE_TOXAV_TOXAV_H
 %}

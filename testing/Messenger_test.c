@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -38,25 +38,23 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
-#define _XOPEN_SOURCE 600
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-#include "../toxcore/Messenger.h"
-#include "misc_tools.c"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #if !defined(_WIN32) && !defined(__WIN32__) && !defined (WIN32)
 #include <arpa/inet.h>
-
 #endif
+
+#include "../toxcore/Messenger.h"
+#include "../toxcore/mono_time.h"
+#include "misc_tools.h"
 
 static void print_message(Messenger *m, uint32_t friendnumber, unsigned int type, const uint8_t *string, size_t length,
                           void *userdata)
 {
     printf("Message with length %u received from %u: %s \n", (unsigned)length, friendnumber, string);
-    m_send_message_generic(m, friendnumber, type, (const uint8_t *)"Test1", 6, 0);
+    m_send_message_generic(m, friendnumber, type, (const uint8_t *)"Test1", 6, nullptr);
 }
 
 /* TODO(irungentoo): needed as print_request has to match the interface expected by
@@ -94,7 +92,7 @@ static void print_request(Messenger *m2, const uint8_t *public_key, const uint8_
 int main(int argc, char *argv[])
 {
     /* let user override default by cmdline */
-    uint8_t ipv6enabled = TOX_ENABLE_IPV6_DEFAULT; /* x */
+    bool ipv6enabled = TOX_ENABLE_IPV6_DEFAULT; /* x */
     int argvoffset = cmdline_parsefor_ipv46(argc, argv, &ipv6enabled);
 
     if (argvoffset < 0) {
@@ -102,16 +100,21 @@ int main(int argc, char *argv[])
     }
 
     /* with optional --ipvx, now it can be 1-4 arguments... */
-    if ((argc != argvoffset + 2) && (argc != argvoffset + 4)) {
+    if (argc != argvoffset + 4) {
         printf("Usage: %s [--ipv4|--ipv6] ip port public_key (of the DHT bootstrap node)\n", argv[0]);
-        printf("or\n");
-        printf("       %s [--ipv4|--ipv6] Save.bak (to read Save.bak as state file)\n", argv[0]);
+        exit(0);
+    }
+
+    Mono_Time *const mono_time = mono_time_new();
+
+    if (mono_time == nullptr) {
+        fputs("Failed to allocate monotonic timer datastructure\n", stderr);
         exit(0);
     }
 
     Messenger_Options options = {0};
     options.ipv6enabled = ipv6enabled;
-    m = new_messenger(&options, 0);
+    m = new_messenger(mono_time, &options, nullptr);
 
     if (!m) {
         fputs("Failed to allocate messenger datastructure\n", stderr);
@@ -121,7 +124,7 @@ int main(int argc, char *argv[])
     if (argc == argvoffset + 4) {
         uint16_t port = net_htons(atoi(argv[argvoffset + 2]));
         uint8_t *bootstrap_key = hex_string_to_bin(argv[argvoffset + 3]);
-        int res = DHT_bootstrap_from_address(m->dht, argv[argvoffset + 1],
+        int res = dht_bootstrap_from_address(m->dht, argv[argvoffset + 1],
                                              ipv6enabled, port, bootstrap_key);
         free(bootstrap_key);
 
@@ -129,19 +132,6 @@ int main(int argc, char *argv[])
             printf("Failed to convert \"%s\" into an IP address. Exiting...\n", argv[argvoffset + 1]);
             exit(1);
         }
-    } else {
-        FILE *file = fopen(argv[argvoffset + 1], "rb");
-
-        if (file == nullptr) {
-            printf("Failed to open \"%s\" - does it exist?\n", argv[argvoffset + 1]);
-            return 1;
-        }
-
-        int read;
-        uint8_t buffer[128000];
-        read = fread(buffer, 1, 128000, file);
-        printf("Messenger loaded: %i\n", messenger_load(m, buffer, read));
-        fclose(file);
     }
 
     m_callback_friendrequest(m, print_request);
@@ -174,31 +164,45 @@ int main(int argc, char *argv[])
     }
 
     uint8_t *bin_id = hex_string_to_bin(temp_hex_id);
-    int num = m_addfriend(m, bin_id, (const uint8_t *)"Install Gentoo", sizeof("Install Gentoo"));
+    const int num = m_addfriend(m, bin_id, (const uint8_t *)"Install Gentoo", sizeof("Install Gentoo"));
     free(bin_id);
 
     perror("Initialization");
 
     while (1) {
+        mono_time_update(mono_time);
+
         uint8_t name[128];
+        const char *const filename = "Save.bak";
         getname(m, num, name);
         printf("%s\n", name);
 
-        m_send_message_generic(m, num, MESSAGE_NORMAL, (const uint8_t *)"Test", 5, 0);
+        m_send_message_generic(m, num, MESSAGE_NORMAL, (const uint8_t *)"Test", 5, nullptr);
         do_messenger(m, nullptr);
         c_sleep(30);
-        FILE *file = fopen("Save.bak", "wb");
+        FILE *file = fopen(filename, "wb");
 
         if (file == nullptr) {
+            printf("Failed to open file %s\n", filename);
             kill_messenger(m);
             return 1;
         }
 
         uint8_t *buffer = (uint8_t *)malloc(messenger_size(m));
+
+        if (buffer == nullptr) {
+            fputs("Failed to allocate memory\n", stderr);
+            fclose(file);
+            kill_messenger(m);
+            return 1;
+        }
+
         messenger_save(m, buffer);
-        size_t write_result = fwrite(buffer, 1, messenger_size(m), file);
+        const size_t write_result = fwrite(buffer, 1, messenger_size(m), file);
 
         if (write_result < messenger_size(m)) {
+            free(buffer);
+            fclose(file);
             kill_messenger(m);
             return 1;
         }

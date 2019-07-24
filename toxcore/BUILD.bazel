@@ -30,7 +30,8 @@ cc_library(
 
 cc_test(
     name = "crypto_core_test",
-    srcs = ["crypto_core_test.cpp"],
+    size = "small",
+    srcs = ["crypto_core_test.cc"],
     deps = [
         ":crypto_core",
         "@com_google_googletest//:gtest_main",
@@ -52,6 +53,30 @@ cc_library(
 )
 
 cc_library(
+    name = "state",
+    srcs = ["state.c"],
+    hdrs = ["state.h"],
+    deps = [":logger"],
+)
+
+cc_library(
+    name = "mono_time",
+    srcs = ["mono_time.c"],
+    hdrs = ["mono_time.h"],
+    deps = [":ccompat"],
+)
+
+cc_test(
+    name = "mono_time_test",
+    size = "small",
+    srcs = ["mono_time_test.cc"],
+    deps = [
+        ":mono_time",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "network",
     srcs = [
         "network.c",
@@ -61,7 +86,6 @@ cc_library(
         "network.h",
         "util.h",
     ],
-    linkopts = ["-lpthread"],
     visibility = [
         "//c-toxcore/other:__pkg__",
         "//c-toxcore/toxav:__pkg__",
@@ -70,12 +94,16 @@ cc_library(
         ":ccompat",
         ":crypto_core",
         ":logger",
+        ":mono_time",
+        "@psocket",
+        "@pthread",
     ],
 )
 
 cc_test(
     name = "util_test",
-    srcs = ["util_test.cpp"],
+    size = "small",
+    srcs = ["util_test.cc"],
     deps = [
         ":network",
         "@com_google_googletest//:gtest_main",
@@ -87,6 +115,16 @@ cc_library(
     srcs = ["ping_array.c"],
     hdrs = ["ping_array.h"],
     deps = [":network"],
+)
+
+cc_test(
+    name = "ping_array_test",
+    size = "small",
+    srcs = ["ping_array_test.cc"],
+    deps = [
+        ":ping_array",
+        "@com_google_googletest//:gtest_main",
+    ],
 )
 
 cc_library(
@@ -106,6 +144,28 @@ cc_library(
         ":crypto_core",
         ":logger",
         ":ping_array",
+        ":state",
+    ],
+)
+
+cc_library(
+    name = "DHT_srcs",
+    hdrs = [
+        "DHT.c",
+        "DHT.h",
+        "LAN_discovery.c",
+        "LAN_discovery.h",
+        "ping.c",
+        "ping.h",
+    ],
+    visibility = [
+        "//c-toxcore/auto_tests:__pkg__",
+        "//c-toxcore/other/bootstrap_daemon:__pkg__",
+    ],
+    deps = [
+        ":logger",
+        ":ping_array",
+        ":state",
     ],
 )
 
@@ -128,6 +188,10 @@ cc_library(
         "TCP_connection.h",
         "TCP_server.h",
     ],
+    copts = select({
+        "//tools/config:linux": ["-DTCP_SERVER_USE_EPOLL=1"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":crypto_core",
         ":list",
@@ -185,7 +249,10 @@ cc_library(
     srcs = ["Messenger.c"],
     hdrs = ["Messenger.h"],
     visibility = ["//c-toxcore/toxav:__pkg__"],
-    deps = [":friend_requests"],
+    deps = [
+        ":friend_requests",
+        ":state",
+    ],
 )
 
 cc_library(
@@ -207,19 +274,5 @@ cc_library(
     deps = [
         ":group",
         "//c-toxcore/toxencryptsave:defines",
-    ],
-)
-
-cc_library(
-    name = "monolith",
-    hdrs = glob([
-        "*.c",
-        "*.h",
-    ]),
-    linkopts = ["-lpthread"],
-    visibility = ["//c-toxcore/other:__pkg__"],
-    deps = [
-        "//c-toxcore/toxencryptsave:defines",
-        "@libsodium",
     ],
 )

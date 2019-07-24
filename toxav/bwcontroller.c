@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013-2015 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -23,39 +23,46 @@
 
 #include "bwcontroller.h"
 
+#include <assert.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "ring_buffer.h"
 
 #include "../toxcore/logger.h"
+#include "../toxcore/mono_time.h"
 #include "../toxcore/util.h"
 
-#include <assert.h>
-#include <errno.h>
-
 #define BWC_PACKET_ID 196
-#define BWC_SEND_INTERVAL_MS 950     /* 0.95s  */
+#define BWC_SEND_INTERVAL_MS 950     // 0.95s
 #define BWC_AVG_PKT_COUNT 20
 #define BWC_AVG_LOSS_OVER_CYCLES_COUNT 30
 
+typedef struct BWCCycle {
+    uint32_t last_recv_timestamp; /* Last recv update time stamp */
+    uint32_t last_sent_timestamp; /* Last sent update time stamp */
+    uint32_t last_refresh_timestamp; /* Last refresh time stamp */
+
+    uint32_t lost;
+    uint32_t recv;
+} BWCCycle;
+
+typedef struct BWCRcvPkt {
+    uint32_t packet_length_array[BWC_AVG_PKT_COUNT];
+    RingBuffer *rb;
+} BWCRcvPkt;
+
 struct BWController_s {
-    void (*mcb)(BWController *, uint32_t, float, void *);
-    void *mcb_data;
+    m_cb *mcb;
+    void *mcb_user_data;
 
     Messenger *m;
     uint32_t friend_number;
 
-    struct {
-        uint32_t last_recv_timestamp; /* Last recv update time stamp */
-        uint32_t last_sent_timestamp; /* Last sent update time stamp */
-        uint32_t last_refresh_timestamp; /* Last refresh time stamp */
+    BWCCycle cycle;
 
-        uint32_t lost;
-        uint32_t recv;
-    } cycle;
-
-    struct {
-        uint32_t packet_length_array[BWC_AVG_PKT_COUNT];
-        RingBuffer *rb;
-    } rcvpkt; /* To calculate average received packet (this means split parts, not the full message!) */
+    BWCRcvPkt rcvpkt; /* To calculate average received packet (this means split parts, not the full message!) */
 
     uint32_t packet_loss_counted_cycles;
 };
@@ -68,24 +75,24 @@ struct BWCMessage {
 int bwc_handle_data(Messenger *m, uint32_t friendnumber, const uint8_t *data, uint16_t length, void *object);
 void send_update(BWController *bwc);
 
-BWController *bwc_new(Messenger *m, uint32_t friendnumber,
-                      void (*mcb)(BWController *, uint32_t, float, void *),
-                      void *udata)
+BWController *bwc_new(Messenger *m, uint32_t friendnumber, m_cb *mcb, void *mcb_user_data)
 {
     BWController *retu = (BWController *)calloc(sizeof(struct BWController_s), 1);
     LOGGER_DEBUG(m->log, "Creating bandwidth controller");
     retu->mcb = mcb;
-    retu->mcb_data = udata;
+    retu->mcb_user_data = mcb_user_data;
     retu->m = m;
     retu->friend_number = friendnumber;
-    retu->cycle.last_sent_timestamp = retu->cycle.last_refresh_timestamp = current_time_monotonic();
+    uint64_t now = current_time_monotonic(m->mono_time);
+    retu->cycle.last_sent_timestamp = now;
+    retu->cycle.last_refresh_timestamp = now;
     retu->rcvpkt.rb = rb_new(BWC_AVG_PKT_COUNT);
     retu->cycle.lost = 0;
     retu->cycle.recv = 0;
     retu->packet_loss_counted_cycles = 0;
 
     /* Fill with zeros */
-    for (int i = 0; i < BWC_AVG_PKT_COUNT; i++) {
+    for (int i = 0; i < BWC_AVG_PKT_COUNT; ++i) {
         rb_write(retu->rcvpkt.rb, &retu->rcvpkt.packet_length_array[i]);
     }
 
@@ -123,7 +130,7 @@ void bwc_add_recv(BWController *bwc, uint32_t recv_bytes)
         return;
     }
 
-    bwc->packet_loss_counted_cycles++;
+    ++bwc->packet_loss_counted_cycles;
     bwc->cycle.recv += recv_bytes;
     send_update(bwc);
 }
@@ -131,7 +138,7 @@ void bwc_add_recv(BWController *bwc, uint32_t recv_bytes)
 void send_update(BWController *bwc)
 {
     if (bwc->packet_loss_counted_cycles > BWC_AVG_LOSS_OVER_CYCLES_COUNT &&
-            current_time_monotonic() - bwc->cycle.last_sent_timestamp > BWC_SEND_INTERVAL_MS) {
+            current_time_monotonic(bwc->m->mono_time) - bwc->cycle.last_sent_timestamp > BWC_SEND_INTERVAL_MS) {
         bwc->packet_loss_counted_cycles = 0;
 
         if (bwc->cycle.lost) {
@@ -152,7 +159,7 @@ void send_update(BWController *bwc)
             }
         }
 
-        bwc->cycle.last_sent_timestamp = current_time_monotonic();
+        bwc->cycle.last_sent_timestamp = current_time_monotonic(bwc->m->mono_time);
         bwc->cycle.lost = 0;
         bwc->cycle.recv = 0;
     }
@@ -163,12 +170,12 @@ static int on_update(BWController *bwc, const struct BWCMessage *msg)
     LOGGER_DEBUG(bwc->m->log, "%p Got update from peer", (void *)bwc);
 
     /* Peers sent update too soon */
-    if (bwc->cycle.last_recv_timestamp + BWC_SEND_INTERVAL_MS > current_time_monotonic()) {
+    if (bwc->cycle.last_recv_timestamp + BWC_SEND_INTERVAL_MS > current_time_monotonic(bwc->m->mono_time)) {
         LOGGER_INFO(bwc->m->log, "%p Rejecting extra update", (void *)bwc);
         return -1;
     }
 
-    bwc->cycle.last_recv_timestamp = current_time_monotonic();
+    bwc->cycle.last_recv_timestamp = current_time_monotonic(bwc->m->mono_time);
 
     uint32_t recv = net_ntohl(msg->recv);
     uint32_t lost = net_ntohl(msg->lost);
@@ -178,7 +185,7 @@ static int on_update(BWController *bwc, const struct BWCMessage *msg)
                      (((double) lost / (recv + lost)) * 100.0));
         bwc->mcb(bwc, bwc->friend_number,
                  ((float) lost / (recv + lost)),
-                 bwc->mcb_data);
+                 bwc->mcb_user_data);
     }
 
     return 0;

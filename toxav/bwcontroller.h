@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013-2015 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -17,20 +17,20 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef BWCONROLLER_H
-#define BWCONROLLER_H
+#ifndef C_TOXCORE_TOXAV_BWCONTROLLER_H
+#define C_TOXCORE_TOXAV_BWCONTROLLER_H
 
 #include "../toxcore/Messenger.h"
 
 typedef struct BWController_s BWController;
 
-BWController *bwc_new(Messenger *m, uint32_t friendnumber,
-                      void (*mcb)(BWController *, uint32_t, float, void *),
-                      void *udata);
+typedef void m_cb(BWController *bwc, uint32_t friend_number, float todo, void *user_data);
+
+BWController *bwc_new(Messenger *m, uint32_t friendnumber, m_cb *mcb, void *mcb_user_data);
 
 void bwc_kill(BWController *bwc);
 
-void bwc_add_lost(BWController *bwc, uint32_t bytes);
-void bwc_add_recv(BWController *bwc, uint32_t bytes);
+void bwc_add_lost(BWController *bwc, uint32_t bytes_lost);
+void bwc_add_recv(BWController *bwc, uint32_t recv_bytes);
 
-#endif /* BWCONROLLER_H */
+#endif // C_TOXCORE_TOXAV_BWCONTROLLER_H

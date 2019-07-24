@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -28,22 +28,22 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
 #endif
 
-//#include "../core/network.h"
-#include "../toxcore/DHT.h"
-#include "../toxcore/friend_requests.h"
-#include "misc_tools.c"
-
+#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #if !defined(_WIN32) && !defined(__WIN32__) && !defined (WIN32)
 #include <arpa/inet.h>
 #endif
+
+#include "../toxcore/DHT.h"
+#include "../toxcore/friend_requests.h"
+#include "../toxcore/mono_time.h"
+#include "misc_tools.h"
 
 #define PORT 33445
 
@@ -128,7 +128,7 @@ static void print_friendlist(DHT *dht)
 
         print_client_id(dht_get_friend_public_key(dht, k));
 
-        int friendok = DHT_getfriendip(dht, dht_get_friend_public_key(dht, k), &p_ip);
+        int friendok = dht_getfriendip(dht, dht_get_friend_public_key(dht, k), &p_ip);
         char ip_str[IP_NTOA_LEN];
         printf("\nIP: %s:%u (%d)", ip_ntoa(&p_ip.ip, ip_str, sizeof(ip_str)), net_ntohs(p_ip.port), friendok);
 
@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
     }
 
     /* let user override default by cmdline */
-    uint8_t ipv6enabled = TOX_ENABLE_IPV6_DEFAULT; /* x */
+    bool ipv6enabled = TOX_ENABLE_IPV6_DEFAULT; /* x */
     int argvoffset = cmdline_parsefor_ipv46(argc, argv, &ipv6enabled);
 
     if (argvoffset < 0) {
@@ -190,11 +190,11 @@ int main(int argc, char *argv[])
     IP ip;
     ip_init(&ip, ipv6enabled);
 
-    DHT *dht = new_DHT(nullptr, new_networking(nullptr, ip, PORT), true);
+    Mono_Time *const mono_time = mono_time_new();
+    DHT *dht = new_dht(nullptr, mono_time, new_networking(nullptr, ip, PORT), true);
     printf("OUR ID: ");
-    uint32_t i;
 
-    for (i = 0; i < 32; i++) {
+    for (uint32_t i = 0; i < 32; i++) {
         const uint8_t *const self_public_key = dht_get_self_public_key(dht);
 
         if (self_public_key[i] < 16) {
@@ -216,14 +216,14 @@ int main(int argc, char *argv[])
     }
 
     uint8_t *bin_id = hex_string_to_bin(temp_id);
-    DHT_addfriend(dht, bin_id, 0, 0, 0, 0);
+    dht_addfriend(dht, bin_id, nullptr, nullptr, 0, nullptr);
     free(bin_id);
 
     perror("Initialization");
 
     uint16_t port = net_htons(atoi(argv[argvoffset + 2]));
     unsigned char *binary_string = hex_string_to_bin(argv[argvoffset + 3]);
-    int res = DHT_bootstrap_from_address(dht, argv[argvoffset + 1], ipv6enabled, port, binary_string);
+    int res = dht_bootstrap_from_address(dht, argv[argvoffset + 1], ipv6enabled, port, binary_string);
     free(binary_string);
 
     if (!res) {
@@ -238,12 +238,14 @@ int main(int argc, char *argv[])
 #endif
 
     while (1) {
-        do_DHT(dht);
+        mono_time_update(mono_time);
+
+        do_dht(dht);
 
 #if 0 /* TODO(slvr): */
 
         while (receivepacket(&ip_port, data, &length) != -1) {
-            if (DHT_handlepacket(data, length, ip_port) && friendreq_handlepacket(data, length, ip_port)) {
+            if (dht_handlepacket(data, length, ip_port) && friendreq_handlepacket(data, length, ip_port)) {
                 //unhandled packet
                 printpacket(data, length, ip_port);
             } else {

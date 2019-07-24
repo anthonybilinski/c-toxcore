@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013-2015 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -17,8 +17,8 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef MSI_H
-#define MSI_H
+#ifndef C_TOXCORE_TOXAV_MSI_H
+#define C_TOXCORE_TOXAV_MSI_H
 
 #include "audio.h"
 #include "video.h"
@@ -32,48 +32,48 @@
 /**
  * Error codes.
  */
-typedef enum {
-    msi_ENone,
-    msi_EInvalidMessage,
-    msi_EInvalidParam,
-    msi_EInvalidState,
-    msi_EStrayMessage,
-    msi_ESystem,
-    msi_EHandle,
-    msi_EUndisclosed, /* NOTE: must be last enum otherwise parsing will not work */
+typedef enum MSIError {
+    MSI_E_NONE,
+    MSI_E_INVALID_MESSAGE,
+    MSI_E_INVALID_PARAM,
+    MSI_E_INVALID_STATE,
+    MSI_E_STRAY_MESSAGE,
+    MSI_E_SYSTEM,
+    MSI_E_HANDLE,
+    MSI_E_UNDISCLOSED, /* NOTE: must be last enum otherwise parsing will not work */
 } MSIError;
 
 /**
  * Supported capabilities
  */
-typedef enum {
-    msi_CapSAudio = 4,  /* sending audio */
-    msi_CapSVideo = 8,  /* sending video */
-    msi_CapRAudio = 16, /* receiving audio */
-    msi_CapRVideo = 32, /* receiving video */
+typedef enum MSICapabilities {
+    MSI_CAP_S_AUDIO = 4,  /* sending audio */
+    MSI_CAP_S_VIDEO = 8,  /* sending video */
+    MSI_CAP_R_AUDIO = 16, /* receiving audio */
+    MSI_CAP_R_VIDEO = 32, /* receiving video */
 } MSICapabilities;
 
 
 /**
  * Call state identifiers.
  */
-typedef enum {
-    msi_CallInactive, /* Default */
-    msi_CallActive,
-    msi_CallRequesting, /* when sending call invite */
-    msi_CallRequested, /* when getting call invite */
+typedef enum MSICallState {
+    MSI_CALL_INACTIVE, /* Default */
+    MSI_CALL_ACTIVE,
+    MSI_CALL_REQUESTING, /* when sending call invite */
+    MSI_CALL_REQUESTED, /* when getting call invite */
 } MSICallState;
 
 /**
  * Callbacks ids that handle the states
  */
-typedef enum {
-    msi_OnInvite, /* Incoming call */
-    msi_OnStart, /* Call (RTP transmission) started */
-    msi_OnEnd, /* Call that was active ended */
-    msi_OnError, /* On protocol error */
-    msi_OnPeerTimeout, /* Peer timed out; stop the call */
-    msi_OnCapabilities, /* Peer requested capabilities change */
+typedef enum MSICallbackID {
+    MSI_ON_INVITE, /* Incoming call */
+    MSI_ON_START, /* Call (RTP transmission) started */
+    MSI_ON_END, /* Call that was active ended */
+    MSI_ON_ERROR, /* On protocol error */
+    MSI_ON_PEERTIMEOUT, /* Peer timed out; stop the call */
+    MSI_ON_CAPABILITIES, /* Peer requested capabilities change */
 } MSICallbackID;
 
 /**
@@ -89,7 +89,7 @@ typedef struct MSICall_s {
     uint32_t             friend_number;     /* Index of this call in MSISession */
     MSIError             error;             /* Last error */
 
-    void                *av_call;           /* Pointer to av call handler */
+    struct ToxAVCall_s  *av_call;           /* Pointer to av call handler */
 
     struct MSICall_s    *next;
     struct MSICall_s    *prev;
@@ -126,7 +126,7 @@ MSISession *msi_new(Messenger *m);
 /**
  * Terminate control session. NOTE: all calls will be freed
  */
-int msi_kill(MSISession *session, Logger *log);
+int msi_kill(MSISession *session, const Logger *log);
 /**
  * Callback setter.
  */
@@ -148,4 +148,4 @@ int msi_answer(MSICall *call, uint8_t capabilities);
  */
 int msi_change_capabilities(MSICall *call, uint8_t capabilities);
 
-#endif /* MSI_H */
+#endif // C_TOXCORE_TOXAV_MSI_H

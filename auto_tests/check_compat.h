@@ -1,10 +1,11 @@
-#ifndef CHECK_COMPAT_H
-#define CHECK_COMPAT_H
+#ifndef C_TOXCORE_AUTO_TESTS_CHECK_COMPAT_H
+#define C_TOXCORE_AUTO_TESTS_CHECK_COMPAT_H
 
 #include "../toxcore/ccompat.h"
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define START_TEST(name) static void name(void)
 #define END_TEST
@@ -43,7 +44,7 @@ static inline int srunner_ntests_failed(SRunner *r)
 #define ck_assert(ok) do {                                              \
   if (!(ok)) {                                                          \
     fprintf(stderr, "%s:%d: failed `%s'\n", __FILE__, __LINE__, #ok);   \
-    exit(EXIT_FAILURE);                                                 \
+    abort();                                                            \
   }                                                                     \
 } while (0)
 
@@ -52,7 +53,7 @@ static inline int srunner_ntests_failed(SRunner *r)
     fprintf(stderr, "%s:%d: failed `%s': ", __FILE__, __LINE__, #ok);   \
     fprintf(stderr, __VA_ARGS__);                                       \
     fprintf(stderr, "\n");                                              \
-    exit(EXIT_FAILURE);                                                 \
+    abort();                                                            \
   }                                                                     \
 } while (0)
 
@@ -60,7 +61,7 @@ static inline int srunner_ntests_failed(SRunner *r)
   fprintf(stderr, "%s:%d: ", __FILE__, __LINE__);                       \
   fprintf(stderr, __VA_ARGS__);                                         \
   fprintf(stderr, "\n");                                                \
-  exit(EXIT_FAILURE);                                                   \
+  abort();                                                              \
 } while (0)
 
-#endif // CHECK_COMPAT_H
+#endif // C_TOXCORE_AUTO_TESTS_CHECK_COMPAT_H

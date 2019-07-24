@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -24,6 +24,8 @@
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "bootstrap_node_packets.h"
+
+#include <string.h>
 
 #define INFO_REQUEST_PACKET_LENGTH 78
 

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013-2015 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -23,15 +23,17 @@
 
 #include "video.h"
 
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "msi.h"
 #include "ring_buffer.h"
 #include "rtp.h"
 
 #include "../toxcore/logger.h"
+#include "../toxcore/mono_time.h"
 #include "../toxcore/network.h"
-
-#include <assert.h>
-#include <stdlib.h>
 
 /**
  * Soft deadline the decoder should attempt to meet, in "us" (microseconds).
@@ -39,7 +41,7 @@
  *
  * By convention, the value 1 is used to mean "return as fast as possible."
  */
-// TODO: don't hardcode this, let the application choose it
+// TODO(zoff99): don't hardcode this, let the application choose it
 #define WANTED_MAX_DECODER_FPS 40
 
 /**
@@ -70,8 +72,14 @@
 #define VIDEO_BITRATE_INITIAL_VALUE 5000
 #define VIDEO_DECODE_BUFFER_SIZE 5 // this buffer has normally max. 1 entry
 
-#define VIDEO_CODEC_DECODER_INTERFACE (vpx_codec_vp8_dx())
-#define VIDEO_CODEC_ENCODER_INTERFACE (vpx_codec_vp8_cx())
+static vpx_codec_iface_t *video_codec_decoder_interface(void)
+{
+    return vpx_codec_vp8_dx();
+}
+static vpx_codec_iface_t *video_codec_encoder_interface(void)
+{
+    return vpx_codec_vp8_cx();
+}
 
 #define VIDEO_CODEC_DECODER_MAX_WIDTH  800 // its a dummy value, because the struct needs a value there
 #define VIDEO_CODEC_DECODER_MAX_HEIGHT 600 // its a dummy value, because the struct needs a value there
@@ -80,11 +88,11 @@
 
 #define VPX_MAX_ENCODER_THREADS 4
 #define VPX_MAX_DECODER_THREADS 4
-#define VIDEO__VP8_DECODER_POST_PROCESSING_ENABLED 0
+#define VIDEO_VP8_DECODER_POST_PROCESSING_ENABLED 0
 
-static void vc_init_encoder_cfg(Logger *log, vpx_codec_enc_cfg_t *cfg, int16_t kf_max_dist)
+static void vc_init_encoder_cfg(const Logger *log, vpx_codec_enc_cfg_t *cfg, int16_t kf_max_dist)
 {
-    vpx_codec_err_t rc = vpx_codec_enc_config_default(VIDEO_CODEC_ENCODER_INTERFACE, cfg, 0);
+    vpx_codec_err_t rc = vpx_codec_enc_config_default(video_codec_encoder_interface(), cfg, 0);
 
     if (rc != VPX_CODEC_OK) {
         LOGGER_ERROR(log, "vc_init_encoder_cfg:Failed to get config: %s", vpx_codec_err_to_string(rc));
@@ -151,7 +159,8 @@ static void vc_init_encoder_cfg(Logger *log, vpx_codec_enc_cfg_t *cfg, int16_t k
 #endif
 }
 
-VCSession *vc_new(Logger *log, ToxAV *av, uint32_t friend_number, toxav_video_receive_frame_cb *cb, void *cb_data)
+VCSession *vc_new(Mono_Time *mono_time, const Logger *log, ToxAV *av, uint32_t friend_number,
+                  toxav_video_receive_frame_cb *cb, void *cb_data)
 {
     VCSession *vc = (VCSession *)calloc(sizeof(VCSession), 1);
     vpx_codec_err_t rc;
@@ -169,7 +178,9 @@ VCSession *vc_new(Logger *log, ToxAV *av, uint32_t friend_number, toxav_video_re
 
     int cpu_used_value = VP8E_SET_CPUUSED_VALUE;
 
-    if (!(vc->vbuf_raw = rb_new(VIDEO_DECODE_BUFFER_SIZE))) {
+    vc->vbuf_raw = rb_new(VIDEO_DECODE_BUFFER_SIZE);
+
+    if (!vc->vbuf_raw) {
         goto BASE_CLEANUP;
     }
 
@@ -186,12 +197,12 @@ VCSession *vc_new(Logger *log, ToxAV *av, uint32_t friend_number, toxav_video_re
     dec_cfg.h = VIDEO_CODEC_DECODER_MAX_HEIGHT;
 
     LOGGER_DEBUG(log, "Using VP8 codec for decoder (0)");
-    rc = vpx_codec_dec_init(vc->decoder, VIDEO_CODEC_DECODER_INTERFACE, &dec_cfg,
+    rc = vpx_codec_dec_init(vc->decoder, video_codec_decoder_interface(), &dec_cfg,
                             VPX_CODEC_USE_FRAME_THREADING | VPX_CODEC_USE_POSTPROC);
 
     if (rc == VPX_CODEC_INCAPABLE) {
         LOGGER_WARNING(log, "Postproc not supported by this decoder (0)");
-        rc = vpx_codec_dec_init(vc->decoder, VIDEO_CODEC_DECODER_INTERFACE, &dec_cfg, VPX_CODEC_USE_FRAME_THREADING);
+        rc = vpx_codec_dec_init(vc->decoder, video_codec_decoder_interface(), &dec_cfg, VPX_CODEC_USE_FRAME_THREADING);
     }
 
     if (rc != VPX_CODEC_OK) {
@@ -199,7 +210,7 @@ VCSession *vc_new(Logger *log, ToxAV *av, uint32_t friend_number, toxav_video_re
         goto BASE_CLEANUP;
     }
 
-    if (VIDEO__VP8_DECODER_POST_PROCESSING_ENABLED == 1) {
+    if (VIDEO_VP8_DECODER_POST_PROCESSING_ENABLED == 1) {
         vp8_postproc_cfg_t pp = {VP8_DEBLOCK, 1, 0};
         vpx_codec_err_t cc_res = vpx_codec_control(vc->decoder, VP8_SET_POSTPROC, &pp);
 
@@ -225,7 +236,7 @@ VCSession *vc_new(Logger *log, ToxAV *av, uint32_t friend_number, toxav_video_re
     vc_init_encoder_cfg(log, &cfg, 1);
 
     LOGGER_DEBUG(log, "Using VP8 codec for encoder (0.1)");
-    rc = vpx_codec_enc_init(vc->encoder, VIDEO_CODEC_ENCODER_INTERFACE, &cfg, VPX_CODEC_USE_FRAME_THREADING);
+    rc = vpx_codec_enc_init(vc->encoder, video_codec_encoder_interface(), &cfg, VPX_CODEC_USE_FRAME_THREADING);
 
     if (rc != VPX_CODEC_OK) {
         LOGGER_ERROR(log, "Failed to initialize encoder: %s", vpx_codec_err_to_string(rc));
@@ -254,10 +265,10 @@ VCSession *vc_new(Logger *log, ToxAV *av, uint32_t friend_number, toxav_video_re
           goto BASE_CLEANUP_1;
       }
      */
-    vc->linfts = current_time_monotonic();
+    vc->linfts = current_time_monotonic(mono_time);
     vc->lcfd = 60;
-    vc->vcb.first = cb;
-    vc->vcb.second = cb_data;
+    vc->vcb = cb;
+    vc->vcb_user_data = cb_data;
     vc->friend_number = friend_number;
     vc->av = av;
     vc->log = log;
@@ -266,7 +277,7 @@ BASE_CLEANUP_1:
     vpx_codec_destroy(vc->decoder);
 BASE_CLEANUP:
     pthread_mutex_destroy(vc->queue_mutex);
-    rb_kill((RingBuffer *)vc->vbuf_raw);
+    rb_kill(vc->vbuf_raw);
     free(vc);
     return nullptr;
 }
@@ -281,11 +292,11 @@ void vc_kill(VCSession *vc)
     vpx_codec_destroy(vc->decoder);
     void *p;
 
-    while (rb_read((RingBuffer *)vc->vbuf_raw, &p)) {
+    while (rb_read(vc->vbuf_raw, &p)) {
         free(p);
     }
 
-    rb_kill((RingBuffer *)vc->vbuf_raw);
+    rb_kill(vc->vbuf_raw);
     pthread_mutex_destroy(vc->queue_mutex);
     LOGGER_DEBUG(vc->log, "Terminated video handler: %p", (void *)vc);
     free(vc);
@@ -297,58 +308,56 @@ void vc_iterate(VCSession *vc)
         return;
     }
 
-    struct RTPMessage *p;
-
-    vpx_codec_err_t rc;
-
     pthread_mutex_lock(vc->queue_mutex);
 
-    uint32_t full_data_len;
+    struct RTPMessage *p;
 
-    if (rb_read((RingBuffer *)vc->vbuf_raw, (void **)&p)) {
-        pthread_mutex_unlock(vc->queue_mutex);
-        const struct RTPHeader *const header = &p->header;
-
-        if (header->flags & RTP_LARGE_FRAME) {
-            full_data_len = header->data_length_full;
-            LOGGER_DEBUG(vc->log, "vc_iterate:001:full_data_len=%d", (int)full_data_len);
-        } else {
-            full_data_len = p->len;
-            LOGGER_DEBUG(vc->log, "vc_iterate:002");
-        }
-
-        LOGGER_DEBUG(vc->log, "vc_iterate: rb_read p->len=%d p->header.xe=%d", (int)full_data_len, p->header.xe);
-        LOGGER_DEBUG(vc->log, "vc_iterate: rb_read rb size=%d", (int)rb_size((RingBuffer *)vc->vbuf_raw));
-        rc = vpx_codec_decode(vc->decoder, p->data, full_data_len, nullptr, MAX_DECODE_TIME_US);
-        free(p);
-
-        if (rc != VPX_CODEC_OK) {
-            LOGGER_ERROR(vc->log, "Error decoding video: %d %s", (int)rc, vpx_codec_err_to_string(rc));
-        } else {
-            /* Play decoded images */
-            vpx_codec_iter_t iter = nullptr;
-            vpx_image_t *dest = nullptr;
-
-            while ((dest = vpx_codec_get_frame(vc->decoder, &iter)) != nullptr) {
-                if (vc->vcb.first) {
-                    vc->vcb.first(vc->av, vc->friend_number, dest->d_w, dest->d_h,
-                                  (const uint8_t *)dest->planes[0], (const uint8_t *)dest->planes[1], (const uint8_t *)dest->planes[2],
-                                  dest->stride[0], dest->stride[1], dest->stride[2], vc->vcb.second);
-                }
-
-                vpx_img_free(dest); // is this needed? none of the VPx examples show that
-            }
-        }
-
-        return;
-    } else {
+    if (!rb_read(vc->vbuf_raw, (void **)&p)) {
         LOGGER_TRACE(vc->log, "no Video frame data available");
+        pthread_mutex_unlock(vc->queue_mutex);
+        return;
     }
 
     pthread_mutex_unlock(vc->queue_mutex);
+    const struct RTPHeader *const header = &p->header;
+
+    uint32_t full_data_len;
+
+    if (header->flags & RTP_LARGE_FRAME) {
+        full_data_len = header->data_length_full;
+        LOGGER_DEBUG(vc->log, "vc_iterate:001:full_data_len=%d", (int)full_data_len);
+    } else {
+        full_data_len = p->len;
+        LOGGER_DEBUG(vc->log, "vc_iterate:002");
+    }
+
+    LOGGER_DEBUG(vc->log, "vc_iterate: rb_read p->len=%d p->header.xe=%d", (int)full_data_len, p->header.xe);
+    LOGGER_DEBUG(vc->log, "vc_iterate: rb_read rb size=%d", (int)rb_size(vc->vbuf_raw));
+    const vpx_codec_err_t rc = vpx_codec_decode(vc->decoder, p->data, full_data_len, nullptr, MAX_DECODE_TIME_US);
+    free(p);
+
+    if (rc != VPX_CODEC_OK) {
+        LOGGER_ERROR(vc->log, "Error decoding video: %d %s", (int)rc, vpx_codec_err_to_string(rc));
+        return;
+    }
+
+    /* Play decoded images */
+    vpx_codec_iter_t iter = nullptr;
+
+    for (vpx_image_t *dest = vpx_codec_get_frame(vc->decoder, &iter);
+            dest != nullptr;
+            dest = vpx_codec_get_frame(vc->decoder, &iter)) {
+        if (vc->vcb) {
+            vc->vcb(vc->av, vc->friend_number, dest->d_w, dest->d_h,
+                    (const uint8_t *)dest->planes[0], (const uint8_t *)dest->planes[1], (const uint8_t *)dest->planes[2],
+                    dest->stride[0], dest->stride[1], dest->stride[2], vc->vcb_user_data);
+        }
+
+        vpx_img_free(dest); // is this needed? none of the VPx examples show that
+    }
 }
 
-int vc_queue_message(void *vcp, struct RTPMessage *msg)
+int vc_queue_message(Mono_Time *mono_time, void *vcp, struct RTPMessage *msg)
 {
     /* This function is called with complete messages
      * they have already been assembled.
@@ -361,13 +370,13 @@ int vc_queue_message(void *vcp, struct RTPMessage *msg)
     VCSession *vc = (VCSession *)vcp;
     const struct RTPHeader *const header = &msg->header;
 
-    if (msg->header.pt == (rtp_TypeVideo + 2) % 128) {
+    if (msg->header.pt == (RTP_TYPE_VIDEO + 2) % 128) {
         LOGGER_WARNING(vc->log, "Got dummy!");
         free(msg);
         return 0;
     }
 
-    if (msg->header.pt != rtp_TypeVideo % 128) {
+    if (msg->header.pt != RTP_TYPE_VIDEO % 128) {
         LOGGER_WARNING(vc->log, "Invalid payload type! pt=%d", (int)msg->header.pt);
         free(msg);
         return -1;
@@ -375,16 +384,16 @@ int vc_queue_message(void *vcp, struct RTPMessage *msg)
 
     pthread_mutex_lock(vc->queue_mutex);
 
-    if ((header->flags & RTP_LARGE_FRAME) && header->pt == rtp_TypeVideo % 128) {
+    if ((header->flags & RTP_LARGE_FRAME) && header->pt == RTP_TYPE_VIDEO % 128) {
         LOGGER_DEBUG(vc->log, "rb_write msg->len=%d b0=%d b1=%d", (int)msg->len, (int)msg->data[0], (int)msg->data[1]);
     }
 
-    free(rb_write((RingBuffer *)vc->vbuf_raw, msg));
+    free(rb_write(vc->vbuf_raw, msg));
 
     /* Calculate time it took for peer to send us this frame */
-    uint32_t t_lcfd = current_time_monotonic() - vc->linfts;
+    uint32_t t_lcfd = current_time_monotonic(mono_time) - vc->linfts;
     vc->lcfd = t_lcfd > 100 ? vc->lcfd : t_lcfd;
-    vc->linfts = current_time_monotonic();
+    vc->linfts = current_time_monotonic(mono_time);
     pthread_mutex_unlock(vc->queue_mutex);
     return 0;
 }
@@ -425,7 +434,7 @@ int vc_reconfigure_encoder(VCSession *vc, uint32_t bit_rate, uint16_t width, uin
         cfg.g_h = height;
 
         LOGGER_DEBUG(vc->log, "Using VP8 codec for encoder");
-        rc = vpx_codec_enc_init(&new_c, VIDEO_CODEC_ENCODER_INTERFACE, &cfg, VPX_CODEC_USE_FRAME_THREADING);
+        rc = vpx_codec_enc_init(&new_c, video_codec_encoder_interface(), &cfg, VPX_CODEC_USE_FRAME_THREADING);
 
         if (rc != VPX_CODEC_OK) {
             LOGGER_ERROR(vc->log, "Failed to initialize encoder: %s", vpx_codec_err_to_string(rc));

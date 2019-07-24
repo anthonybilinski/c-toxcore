@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013 Tox project.
  * Copyright © 2013 plutooo
  *
@@ -23,8 +23,8 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef UTIL_H
-#define UTIL_H
+#ifndef C_TOXCORE_TOXCORE_UTIL_H
+#define C_TOXCORE_TOXCORE_UTIL_H
 
 #include <pthread.h>
 #include <stdbool.h>
@@ -36,40 +36,38 @@
 extern "C" {
 #endif
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define PAIR(TYPE1__, TYPE2__) struct { TYPE1__ first; TYPE2__ second; }
-
-void unix_time_update(void);
-uint64_t unix_time(void);
-int is_timeout(uint64_t timestamp, uint64_t timeout);
-
-
 /* id functions */
 bool id_equal(const uint8_t *dest, const uint8_t *src);
 uint32_t id_copy(uint8_t *dest, const uint8_t *src); /* return value is CLIENT_ID_SIZE */
 
 void host_to_net(uint8_t *num, uint16_t numbytes);
-#define net_to_host(x, y) host_to_net(x, y)
-
-uint16_t lendian_to_host16(uint16_t lendian);
-#define host_tolendian16(x) lendian_to_host16(x)
-
-void host_to_lendian32(uint8_t *dest,  uint32_t num);
-void lendian_to_host32(uint32_t *dest, const uint8_t *lendian);
-
-/* state load/save */
-typedef int (*load_state_callback_func)(void *outer, const uint8_t *data, uint32_t len, uint16_t type);
-int load_state(load_state_callback_func load_state_callback, Logger *log, void *outer,
-               const uint8_t *data, uint32_t length, uint16_t cookie_inner);
+void net_to_host(uint8_t *num, uint16_t numbytes);
 
 /* Returns -1 if failed or 0 if success */
 int create_recursive_mutex(pthread_mutex_t *mutex);
 
+// Safe min/max functions with specific types. This forces the conversion to the
+// desired type before the comparison expression, giving the choice of
+// conversion to the caller. Use these instead of inline comparisons or MIN/MAX
+// macros (effectively inline comparisons).
+int16_t max_s16(int16_t a, int16_t b);
 int32_t max_s32(int32_t a, int32_t b);
+int64_t max_s64(int64_t a, int64_t b);
+
+int16_t min_s16(int16_t a, int16_t b);
+int32_t min_s32(int32_t a, int32_t b);
+int64_t min_s64(int64_t a, int64_t b);
+
+uint16_t max_u16(uint16_t a, uint16_t b);
+uint32_t max_u32(uint32_t a, uint32_t b);
+uint64_t max_u64(uint64_t a, uint64_t b);
+
+uint16_t min_u16(uint16_t a, uint16_t b);
+uint32_t min_u32(uint32_t a, uint32_t b);
 uint64_t min_u64(uint64_t a, uint64_t b);
 
 #ifdef __cplusplus
 }  // extern "C"
 #endif
 
-#endif /* UTIL_H */
+#endif // C_TOXCORE_TOXCORE_UTIL_H

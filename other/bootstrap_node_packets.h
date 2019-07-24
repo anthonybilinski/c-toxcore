@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2015 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -23,8 +23,8 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef BOOTSTRAP_NODE_PACKETS_H
-#define BOOTSTRAP_NODE_PACKETS_H
+#ifndef C_TOXCORE_OTHER_BOOTSTRAP_NODE_PACKETS_H
+#define C_TOXCORE_OTHER_BOOTSTRAP_NODE_PACKETS_H
 
 #include "../toxcore/network.h"
 
@@ -32,4 +32,4 @@
 
 int bootstrap_set_callbacks(Networking_Core *net, uint32_t version, uint8_t *motd, uint16_t motd_length);
 
-#endif // BOOTSTRAP_NODE_PACKETS_H
+#endif // C_TOXCORE_OTHER_BOOTSTRAP_NODE_PACKETS_H

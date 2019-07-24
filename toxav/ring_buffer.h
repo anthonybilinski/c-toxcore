@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013 Tox project.
  * Copyright © 2013 plutooo
  *
@@ -19,11 +19,15 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef RING_BUFFER_H
-#define RING_BUFFER_H
+#ifndef C_TOXCORE_TOXAV_RING_BUFFER_H
+#define C_TOXCORE_TOXAV_RING_BUFFER_H
 
 #include <stdbool.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Ring buffer */
 typedef struct RingBuffer RingBuffer;
@@ -36,4 +40,8 @@ void rb_kill(RingBuffer *b);
 uint16_t rb_size(const RingBuffer *b);
 uint16_t rb_data(const RingBuffer *b, void **dest);
 
-#endif /* RING_BUFFER_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif // C_TOXCORE_TOXAV_RING_BUFFER_H

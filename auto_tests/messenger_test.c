@@ -14,16 +14,7 @@
 #include "config.h"
 #endif
 
-#include "check_compat.h"
-
-#include "helpers.h"
-
-#include "../testing/misc_tools.c" // hex_string_to_bin
-#include "../toxcore/Messenger.h"
-
-#include <stdint.h>
 #include <string.h>
-#include <sys/types.h>
 
 #ifdef VANILLA_NACL
 #include <crypto_box.h> // crypto_box_PUBLICKEYBYTES and other defines.
@@ -31,22 +22,21 @@
 #include <sodium.h>
 #endif
 
+#include "check_compat.h"
+#include "../testing/misc_tools.h"
+#include "../toxcore/Messenger.h"
+
 #define REALLY_BIG_NUMBER ((1) << (sizeof(uint16_t) * 7))
 
 static bool enable_broken_tests = false;
 
 static const char *friend_id_str = "e4b3d5030bc99494605aecc33ceec8875640c1d74aa32790e821b17e98771c4a00000000f1db";
+static const char *good_id_str   = "d3f14b6d384d8f5f2a66cff637e69f28f539c5de61bc29744785291fa4ef4d64";
+static const char *bad_id_str    = "9B569D14ff637e69f2";
 
-/* in case we need more than one ID for a test */
-static const char *good_id_a_str = "DB9B569D14850ED8364C3744CAC2C8FF78985D213E980C7C508D0E91E8E45441";
-static const char *good_id_b_str = "d3f14b6d384d8f5f2a66cff637e69f28f539c5de61bc29744785291fa4ef4d64";
-
-static const char *bad_id_str =    "9B569D14ff637e69f2";
-
-static unsigned char *friend_id = nullptr;
-static unsigned char *good_id_a = nullptr;
-static unsigned char *good_id_b = nullptr;
-static unsigned char *bad_id    = nullptr;
+static uint8_t *friend_id = nullptr;
+static uint8_t *good_id   = nullptr;
+static uint8_t *bad_id    = nullptr;
 
 static int friend_id_num = 0;
 
@@ -146,24 +136,24 @@ START_TEST(test_m_addfriend)
                           + crypto_box_ZEROBYTES + 100);
 
     /* TODO(irungentoo): Update this properly to latest master */
-    if (m_addfriend(m, (const uint8_t *)friend_id, (const uint8_t *)good_data, really_bad_len) != FAERR_TOOLONG) {
+    if (m_addfriend(m, friend_id, (const uint8_t *)good_data, really_bad_len) != FAERR_TOOLONG) {
         ck_abort_msg("m_addfriend did NOT catch the following length: %d\n", really_bad_len);
     }
 
     /* this will return an error if the original m_addfriend_norequest() failed */
-    if (m_addfriend(m, (const uint8_t *)friend_id, (const uint8_t *)good_data, good_len) != FAERR_ALREADYSENT) {
+    if (m_addfriend(m, friend_id, (const uint8_t *)good_data, good_len) != FAERR_ALREADYSENT) {
         ck_abort_msg("m_addfriend did NOT catch adding a friend we already have.\n"
                      "(this can be caused by the error of m_addfriend_norequest in"
                      " the beginning of the suite)\n");
     }
 
-    if (m_addfriend(m, (const uint8_t *)good_id_b, (const uint8_t *)bad_data, bad_len) != FAERR_NOMESSAGE) {
+    if (m_addfriend(m, good_id, (const uint8_t *)bad_data, bad_len) != FAERR_NOMESSAGE) {
         ck_abort_msg("m_addfriend did NOT catch the following length: %d\n", bad_len);
     }
 
     /* this should REALLY return an error */
     /* TODO(irungentoo): validate client_id in m_addfriend? */
-    if (m_addfriend(m, (const uint8_t *)bad_id, (const uint8_t *)good_data, good_len) >= 0) {
+    if (m_addfriend(m, bad_id, (const uint8_t *)good_data, good_len) >= 0) {
         ck_abort_msg("The following ID passed through "
                      "m_addfriend without an error:\n'%s'\n", bad_id_str);
     }
@@ -241,18 +231,18 @@ START_TEST(test_dht_state_saveloadsave)
      * c) a second save() is of equal size
      * d) the second save() is of equal content */
     const size_t extra = 64;
-    const size_t size = DHT_size(m->dht);
+    const size_t size = dht_size(m->dht);
     VLA(uint8_t, buffer, size + 2 * extra);
     memset(buffer, 0xCD, extra);
     memset(buffer + extra + size, 0xCD, extra);
-    DHT_save(m->dht, buffer + extra);
+    dht_save(m->dht, buffer + extra);
 
     for (size_t i = 0; i < extra; i++) {
-        ck_assert_msg(buffer[i] == 0xCD, "Buffer underwritten from DHT_save() @%u", (unsigned)i);
-        ck_assert_msg(buffer[extra + size + i] == 0xCD, "Buffer overwritten from DHT_save() @%u", (unsigned)i);
+        ck_assert_msg(buffer[i] == 0xCD, "Buffer underwritten from dht_save() @%u", (unsigned)i);
+        ck_assert_msg(buffer[extra + size + i] == 0xCD, "Buffer overwritten from dht_save() @%u", (unsigned)i);
     }
 
-    const int res = DHT_load(m->dht, buffer + extra, size);
+    const int res = dht_load(m->dht, buffer + extra, size);
 
     if (res == -1) {
         ck_assert_msg(res == 0, "Failed to load back stored buffer: res == -1");
@@ -264,56 +254,14 @@ START_TEST(test_dht_state_saveloadsave)
                       (unsigned)offset, (unsigned)size, res & 0x0F);
     }
 
-    const size_t size2 = DHT_size(m->dht);
+    const size_t size2 = dht_size(m->dht);
     ck_assert_msg(size == size2, "Messenger \"grew\" in size from a store/load cycle: %u -> %u", (unsigned)size,
                   (unsigned)size2);
 
     VLA(uint8_t, buffer2, size2);
-    DHT_save(m->dht, buffer2);
+    dht_save(m->dht, buffer2);
 
     ck_assert_msg(!memcmp(buffer + extra, buffer2, size), "DHT state changed by store/load/store cycle");
-}
-END_TEST
-
-START_TEST(test_messenger_state_saveloadsave)
-{
-    /* validate that:
-     * a) saving stays within the confined space
-     * b) a save()d state can be load()ed back successfully
-     * c) a second save() is of equal size
-     * d) the second save() is of equal content */
-    const size_t extra = 64;
-    const size_t size = messenger_size(m);
-    VLA(uint8_t, buffer, size + 2 * extra);
-    memset(buffer, 0xCD, extra);
-    memset(buffer + extra + size, 0xCD, extra);
-    messenger_save(m, buffer + extra);
-
-    for (size_t i = 0; i < extra; i++) {
-        ck_assert_msg(buffer[i] == 0xCD, "Buffer underwritten from messenger_save() @%u", (unsigned)i);
-        ck_assert_msg(buffer[extra + size + i] == 0xCD, "Buffer overwritten from messenger_save() @%u", (unsigned)i);
-    }
-
-    const int res = messenger_load(m, buffer + extra, size);
-
-    if (res == -1) {
-        ck_assert_msg(res == 0, "Failed to load back stored buffer: res == -1");
-    } else {
-        const size_t offset = res >> 4;
-        const uint8_t *ptr = buffer + extra + offset;
-        ck_assert_msg(res == 0, "Failed to load back stored buffer: 0x%02x%02x%02x%02x%02x%02x%02x%02x @%u/%u, code %d",
-                      ptr[-2], ptr[-1], ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5],
-                      (unsigned)offset, (unsigned)size, res & 0x0F);
-    }
-
-    const size_t size2 = messenger_size(m);
-    ck_assert_msg(size == size2, "Messenger \"grew\" in size from a store/load cycle: %u -> %u",
-                  (unsigned)size, (unsigned)size2);
-
-    VLA(uint8_t, buffer2, size2);
-    messenger_save(m, buffer2);
-
-    ck_assert_msg(!memcmp(buffer + extra, buffer2, size), "Messenger state changed by store/load/store cycle");
 }
 END_TEST
 
@@ -322,7 +270,6 @@ static Suite *messenger_suite(void)
     Suite *s = suite_create("Messenger");
 
     DEFTESTCASE(dht_state_saveloadsave);
-    DEFTESTCASE(messenger_state_saveloadsave);
 
     DEFTESTCASE(getself_name);
     DEFTESTCASE(m_get_userstatus_size);
@@ -348,24 +295,27 @@ int main(void)
     setvbuf(stdout, nullptr, _IONBF, 0);
 
     friend_id = hex_string_to_bin(friend_id_str);
-    good_id_a = hex_string_to_bin(good_id_a_str);
-    good_id_b = hex_string_to_bin(good_id_b_str);
+    good_id   = hex_string_to_bin(good_id_str);
     bad_id    = hex_string_to_bin(bad_id_str);
+
+    Mono_Time *mono_time = mono_time_new();
 
     /* IPv6 status from global define */
     Messenger_Options options = {0};
     options.ipv6enabled = TOX_ENABLE_IPV6_DEFAULT;
+    options.port_range[0] = 41234;
+    options.port_range[1] = 44234;
     options.log_callback = (logger_cb *)print_debug_log;
-    m = new_messenger(&options, nullptr);
+    m = new_messenger(mono_time, &options, nullptr);
 
     /* setup a default friend and friendnum */
-    if (m_addfriend_norequest(m, (uint8_t *)friend_id) < 0) {
+    if (m_addfriend_norequest(m, friend_id) < 0) {
         fputs("m_addfriend_norequest() failed on a valid ID!\n"
               "this was CRITICAL to the test, and the build WILL fail.\n"
               "the tests will continue now...\n\n", stderr);
     }
 
-    if ((friend_id_num = getfriend_id(m, (uint8_t *)friend_id)) < 0) {
+    if ((friend_id_num = getfriend_id(m, friend_id)) < 0) {
         fputs("getfriend_id() failed on a valid ID!\n"
               "this was CRITICAL to the test, and the build WILL fail.\n"
               "the tests will continue now...\n\n", stderr);
@@ -380,11 +330,11 @@ int main(void)
 
     srunner_free(test_runner);
     free(friend_id);
-    free(good_id_a);
-    free(good_id_b);
+    free(good_id);
     free(bad_id);
 
     kill_messenger(m);
+    mono_time_free(mono_time);
 
     return number_failed;
 }

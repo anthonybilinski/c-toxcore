@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2015-2016 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -22,10 +22,12 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef LOG_H
-#define LOG_H
+#ifndef C_TOXCORE_OTHER_BOOTSTRAP_DAEMON_SRC_LOG_H
+#define C_TOXCORE_OTHER_BOOTSTRAP_DAEMON_SRC_LOG_H
 
 #include <stdbool.h>
+
+#include "../../../toxcore/ccompat.h"
 
 typedef enum LOG_BACKEND {
     LOG_BACKEND_STDOUT,
@@ -41,13 +43,13 @@ typedef enum LOG_LEVEL {
 /**
  * Initializes logger.
  * @param backend Specifies which backend to use.
- * @return true on success, flase if log is already opened.
+ * @return true on success, false if log is already opened.
  */
 bool log_open(LOG_BACKEND backend);
 
 /**
  * Releases all used resources by the logger.
- * @return true on success, flase if log is already closed.
+ * @return true on success, false if log is already closed.
  */
 bool log_close(void);
 
@@ -56,9 +58,9 @@ bool log_close(void);
  * @param level Log level to use.
  * @param format printf-like format string.
  * @param ... Zero or more arguments, similar to printf function.
- * @return true on success, flase if log is closed.
+ * @return true on success, false if log is closed.
  */
-bool log_write(LOG_LEVEL level, const char *format, ...);
+bool log_write(LOG_LEVEL level, const char *format, ...) GNU_PRINTF(2, 3);
 
 
-#endif // LOG_H
+#endif // C_TOXCORE_OTHER_BOOTSTRAP_DAEMON_SRC_LOG_H

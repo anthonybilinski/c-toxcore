@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2015-2016 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -22,13 +22,13 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef LOG_STDOUT_H
-#define LOG_STDOUT_H
+#ifndef C_TOXCORE_OTHER_BOOTSTRAP_DAEMON_SRC_LOG_BACKEND_STDOUT_H
+#define C_TOXCORE_OTHER_BOOTSTRAP_DAEMON_SRC_LOG_BACKEND_STDOUT_H
 
 #include "log.h"
 
 #include <stdarg.h>
 
-void log_backend_stdout_write(LOG_LEVEL level, const char *format, va_list args);
+void log_backend_stdout_write(LOG_LEVEL level, const char *format, va_list args) GNU_PRINTF(2, 0);
 
-#endif // LOG_BACKEND_STDOUT_H
+#endif // C_TOXCORE_OTHER_BOOTSTRAP_DAEMON_SRC_LOG_BACKEND_STDOUT_H

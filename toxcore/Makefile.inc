@@ -8,6 +8,8 @@ libtoxcore_la_includedir = $(includedir)/tox
 libtoxcore_la_SOURCES = ../toxcore/ccompat.h \
                         ../toxcore/DHT.h \
                         ../toxcore/DHT.c \
+                        ../toxcore/mono_time.h \
+                        ../toxcore/mono_time.c \
                         ../toxcore/network.h \
                         ../toxcore/network.c \
                         ../toxcore/crypto_core.h \
@@ -27,6 +29,8 @@ libtoxcore_la_SOURCES = ../toxcore/ccompat.h \
                         ../toxcore/Messenger.c \
                         ../toxcore/ping.h \
                         ../toxcore/ping.c \
+                        ../toxcore/state.h \
+                        ../toxcore/state.c \
                         ../toxcore/tox.h \
                         ../toxcore/tox.c \
                         ../toxcore/tox_api.c \

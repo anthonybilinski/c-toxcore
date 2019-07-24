@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -22,15 +22,15 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef ONION_CLIENT_H
-#define ONION_CLIENT_H
+#ifndef C_TOXCORE_TOXCORE_ONION_CLIENT_H
+#define C_TOXCORE_TOXCORE_ONION_CLIENT_H
 
 #include "net_crypto.h"
 #include "onion_announce.h"
 #include "ping_array.h"
 
 #define MAX_ONION_CLIENTS 8
-#define MAX_ONION_CLIENTS_ANNOUNCE 12 /* Number of nodes to announce ourselves to. */
+#define MAX_ONION_CLIENTS_ANNOUNCE 12 // Number of nodes to announce ourselves to.
 #define ONION_NODE_PING_INTERVAL 15
 #define ONION_NODE_TIMEOUT ONION_NODE_PING_INTERVAL
 
@@ -124,6 +124,8 @@ int onion_set_friend_online(Onion_Client *onion_c, int friend_num, uint8_t is_on
  */
 int onion_getfriendip(const Onion_Client *onion_c, int friend_num, IP_Port *ip_port);
 
+typedef int recv_tcp_relay_cb(void *object, uint32_t number, IP_Port ip_port, const uint8_t *public_key);
+
 /* Set the function for this friend that will be callbacked with object and number
  * when that friends gives us one of the TCP relays he is connected to.
  *
@@ -132,9 +134,10 @@ int onion_getfriendip(const Onion_Client *onion_c, int friend_num, IP_Port *ip_p
  * return -1 on failure.
  * return 0 on success.
  */
-int recv_tcp_relay_handler(Onion_Client *onion_c, int friend_num, int (*tcp_relay_node_callback)(void *object,
-                           uint32_t number, IP_Port ip_port, const uint8_t *public_key), void *object, uint32_t number);
+int recv_tcp_relay_handler(Onion_Client *onion_c, int friend_num,
+                           recv_tcp_relay_cb *callback, void *object, uint32_t number);
 
+typedef void onion_dht_pk_cb(void *data, int32_t number, const uint8_t *dht_public_key, void *userdata);
 
 /* Set the function for this friend that will be callbacked with object and number
  * when that friend gives us his DHT temporary public key.
@@ -144,8 +147,8 @@ int recv_tcp_relay_handler(Onion_Client *onion_c, int friend_num, int (*tcp_rela
  * return -1 on failure.
  * return 0 on success.
  */
-int onion_dht_pk_callback(Onion_Client *onion_c, int friend_num, void (*function)(void *data, int32_t number,
-                          const uint8_t *dht_public_key, void *userdata), void *object, uint32_t number);
+int onion_dht_pk_callback(Onion_Client *onion_c, int friend_num, onion_dht_pk_cb *function, void *object,
+                          uint32_t number);
 
 /* Set a friends DHT public key.
  * timestamp is the time (current_time_monotonic()) at which the key was last confirmed belonging to
@@ -177,15 +180,15 @@ unsigned int onion_getfriend_DHT_pubkey(const Onion_Client *onion_c, int friend_
  */
 int send_onion_data(Onion_Client *onion_c, int friend_num, const uint8_t *data, uint16_t length);
 
-typedef int (*oniondata_handler_callback)(void *object, const uint8_t *source_pubkey, const uint8_t *data,
-        uint16_t len, void *userdata);
+typedef int oniondata_handler_cb(void *object, const uint8_t *source_pubkey, const uint8_t *data,
+                                 uint16_t len, void *userdata);
 
 /* Function to call when onion data packet with contents beginning with byte is received. */
-void oniondata_registerhandler(Onion_Client *onion_c, uint8_t byte, oniondata_handler_callback cb, void *object);
+void oniondata_registerhandler(Onion_Client *onion_c, uint8_t byte, oniondata_handler_cb *cb, void *object);
 
 void do_onion_client(Onion_Client *onion_c);
 
-Onion_Client *new_onion_client(Net_Crypto *c);
+Onion_Client *new_onion_client(Mono_Time *mono_time, Net_Crypto *c);
 
 void kill_onion_client(Onion_Client *onion_c);
 

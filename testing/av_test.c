@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013-2015 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -45,7 +45,8 @@ extern "C" {
 #include "../toxav/ring_buffer.c"
 
 #include "../toxav/toxav.h"
-#include "../toxcore/network.h" /* current_time_monotonic() */
+#include "../toxcore/Messenger.h"
+#include "../toxcore/mono_time.h" /* current_time_monotonic() */
 #include "../toxcore/tox.h"
 #include "../toxcore/util.h"
 
@@ -62,6 +63,9 @@ extern "C" {
 #include <opencv/cv.h>
 #include <opencv/cvwimage.h>
 #include <opencv/highgui.h>
+#ifdef __APPLE__
+#include <opencv2/videoio/videoio_c.h>
+#endif
 
 #include <assert.h>
 #include <sched.h>
@@ -212,12 +216,12 @@ static void t_toxav_receive_audio_frame_cb(ToxAV *av, uint32_t friend_number,
 static void t_toxav_audio_bit_rate_cb(ToxAV *av, uint32_t friend_number,
                                       uint32_t audio_bit_rate, void *user_data)
 {
-    printf("Suggested bit rate: audio: %d\n", audio_bit_rate);
+    printf("Suggested bit rate: audio: %u\n", audio_bit_rate);
 }
 static void t_toxav_video_bit_rate_cb(ToxAV *av, uint32_t friend_number,
                                       uint32_t video_bit_rate, void *user_data)
 {
-    printf("Suggested bit rate: video: %d\n", video_bit_rate);
+    printf("Suggested bit rate: video: %u\n", video_bit_rate);
 }
 static void t_accept_friend_request_cb(Tox *m, const uint8_t *public_key, const uint8_t *data, size_t length,
                                        void *userdata)
@@ -241,7 +245,7 @@ static void initialize_tox(Tox **bootstrap, ToxAV **AliceAV, CallControl *AliceC
     tox_options_set_ipv6_enabled(opts, false);
 
     {
-        TOX_ERR_NEW error;
+        Tox_Err_New error;
 
         tox_options_set_start_port(opts, 33445);
         *bootstrap = tox_new(opts, &error);
@@ -294,7 +298,7 @@ static void initialize_tox(Tox **bootstrap, ToxAV **AliceAV, CallControl *AliceC
     }
 
 
-    TOXAV_ERR_NEW rc;
+    Toxav_Err_New rc;
     *AliceAV = toxav_new(Alice, &rc);
     assert(rc == TOXAV_ERR_NEW_OK);
 
@@ -434,7 +438,10 @@ static int print_help(const char *name)
 
 int main(int argc, char **argv)
 {
-    freopen("/dev/zero", "w", stderr);
+    if (freopen("/dev/zero", "w", stderr) == nullptr) {
+        return EXIT_FAILURE;
+    }
+
     Pa_Initialize();
 
     struct stat st;
@@ -564,6 +571,9 @@ CHECK_ARG:
 
     initialize_tox(&bootstrap, &AliceAV, &AliceCC, &BobAV, &BobCC);
 
+    // TODO(iphydf): Don't depend on toxcore internals
+    Mono_Time *mono_time = (*(Messenger **)bootstrap)->mono_time;
+
     if (TEST_TRANSFER_A) {
         SNDFILE *af_handle;
         SF_INFO af_info;
@@ -580,7 +590,7 @@ CHECK_ARG:
         BobCC.arb = rb_new(16);
 
         { /* Call */
-            TOXAV_ERR_CALL rc;
+            Toxav_Err_Call rc;
             toxav_call(AliceAV, 0, 48, 0, &rc);
 
             if (rc != TOXAV_ERR_CALL_OK) {
@@ -594,7 +604,7 @@ CHECK_ARG:
         }
 
         { /* Answer */
-            TOXAV_ERR_ANSWER rc;
+            Toxav_Err_Answer rc;
             toxav_answer(BobAV, 0, 48, 0, &rc);
 
             if (rc != TOXAV_ERR_ANSWER_OK) {
@@ -642,10 +652,16 @@ CHECK_ARG:
         output.hostApiSpecificStreamInfo = nullptr;
 
         PaError err = Pa_OpenStream(&adout, nullptr, &output, af_info.samplerate, frame_size, paNoFlag, nullptr, nullptr);
-        assert(err == paNoError);
+
+        if (err != paNoError) {
+            return EXIT_FAILURE;
+        }
 
         err = Pa_StartStream(adout);
-        assert(err == paNoError);
+
+        if (err != paNoError) {
+            return EXIT_FAILURE;
+        }
 
 //         toxav_audio_bit_rate_set(AliceAV, 0, 64, false, nullptr);
 
@@ -657,11 +673,11 @@ CHECK_ARG:
         printf("Sample rate %d\n", af_info.samplerate);
 
         while (start_time + expected_time > time(nullptr)) {
-            uint64_t enc_start_time = current_time_monotonic();
+            uint64_t enc_start_time = current_time_monotonic(mono_time);
             int64_t count = sf_read_short(af_handle, PCM, frame_size);
 
             if (count > 0) {
-                TOXAV_ERR_SEND_FRAME rc;
+                Toxav_Err_Send_Frame rc;
 
                 if (toxav_audio_send_frame(AliceAV, 0, PCM, count / af_info.channels, af_info.channels, af_info.samplerate,
                                            &rc) == false) {
@@ -670,7 +686,7 @@ CHECK_ARG:
             }
 
             iterate_tox(bootstrap, AliceAV, BobAV, nullptr);
-            c_sleep((audio_frame_duration - (current_time_monotonic() - enc_start_time) - 1));
+            c_sleep((audio_frame_duration - (current_time_monotonic(mono_time) - enc_start_time) - 1));
         }
 
         printf("Played file in: %lu; stopping stream...\n", time(nullptr) - start_time);
@@ -679,7 +695,7 @@ CHECK_ARG:
         sf_close(af_handle);
 
         { /* Hangup */
-            TOXAV_ERR_CALL_CONTROL rc;
+            Toxav_Err_Call_Control rc;
             toxav_call_control(AliceAV, 0, TOXAV_CALL_CONTROL_CANCEL, &rc);
 
             if (rc != TOXAV_ERR_CALL_CONTROL_OK) {
@@ -721,7 +737,7 @@ CHECK_ARG:
         memset(&BobCC, 0, sizeof(CallControl));
 
         { /* Call */
-            TOXAV_ERR_CALL rc;
+            Toxav_Err_Call rc;
             toxav_call(AliceAV, 0, 0, 2000, &rc);
 
             if (rc != TOXAV_ERR_CALL_OK) {
@@ -735,7 +751,7 @@ CHECK_ARG:
         }
 
         { /* Answer */
-            TOXAV_ERR_ANSWER rc;
+            Toxav_Err_Answer rc;
             toxav_answer(BobAV, 0, 0, 5000, &rc);
 
             if (rc != TOXAV_ERR_ANSWER_OK) {
@@ -785,7 +801,7 @@ CHECK_ARG:
         cvReleaseCapture(&capture);
 
         { /* Hangup */
-            TOXAV_ERR_CALL_CONTROL rc;
+            Toxav_Err_Call_Control rc;
             toxav_call_control(AliceAV, 0, TOXAV_CALL_CONTROL_CANCEL, &rc);
 
             if (rc != TOXAV_ERR_CALL_CONTROL_OK) {

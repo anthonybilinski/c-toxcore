@@ -1,8 +1,8 @@
 /*
  * C language compatibility macros for varying compiler support.
  */
-#ifndef CCOMPAT_H
-#define CCOMPAT_H
+#ifndef C_TOXCORE_TOXCORE_CCOMPAT_H
+#define C_TOXCORE_TOXCORE_CCOMPAT_H
 
 // Variable length arrays.
 // VLA(type, name, size) allocates a variable length array with automatic
@@ -22,13 +22,13 @@
 // Emulation using alloca.
 #ifdef _WIN32
 #include <malloc.h>
-#elif defined(__FreeBSD__)
+#elif defined(__linux__)
+#include <alloca.h>
+#else
 #include <stdlib.h>
 #if !defined(alloca) && defined(__GNUC__)
 #define alloca __builtin_alloca
 #endif
-#else
-#include <alloca.h>
 #endif
 
 #define VLA(type, name, size)                           \
@@ -38,7 +38,7 @@
 
 #endif
 
-#ifndef __cplusplus
+#if !defined(__cplusplus) || __cplusplus < 201103L
 #define nullptr NULL
 #endif
 
@@ -48,4 +48,4 @@
 #define GNU_PRINTF(f, a)
 #endif
 
-#endif /* CCOMPAT_H */
+#endif // C_TOXCORE_TOXCORE_CCOMPAT_H

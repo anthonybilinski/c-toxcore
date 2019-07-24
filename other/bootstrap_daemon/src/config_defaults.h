@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2014-2016 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -22,8 +22,8 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef CONFIG_DEFAULTS_H
-#define CONFIG_DEFAULTS_H
+#ifndef C_TOXCORE_OTHER_BOOTSTRAP_DAEMON_SRC_CONFIG_DEFAULTS_H
+#define C_TOXCORE_OTHER_BOOTSTRAP_DAEMON_SRC_CONFIG_DEFAULTS_H
 
 #include "global.h"
 
@@ -39,4 +39,4 @@
 #define DEFAULT_ENABLE_MOTD           1 // 1 - true, 0 - false
 #define DEFAULT_MOTD                  DAEMON_NAME
 
-#endif // CONFIG_DEFAULTS_H
+#endif // C_TOXCORE_OTHER_BOOTSTRAP_DAEMON_SRC_CONFIG_DEFAULTS_H

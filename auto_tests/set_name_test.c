@@ -1,25 +1,20 @@
 /* Tests that we can set our name.
  */
 
-#ifndef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
-#endif
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
-#include "check_compat.h"
-
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
+#include "../testing/misc_tools.h"
 #include "../toxcore/ccompat.h"
 #include "../toxcore/tox.h"
 #include "../toxcore/util.h"
-
-#include "helpers.h"
+#include "check_compat.h"
 
 #define NICKNAME "Gentoo"
 
@@ -54,44 +49,44 @@ static void test_set_name(void)
 
     tox_bootstrap(tox2, "localhost", dht_port, dht_key, nullptr);
 
-    while (tox_self_get_connection_status(tox1) == TOX_CONNECTION_NONE ||
-            tox_self_get_connection_status(tox2) == TOX_CONNECTION_NONE) {
+    do {
         tox_iterate(tox1, nullptr);
         tox_iterate(tox2, nullptr);
         c_sleep(ITERATION_INTERVAL);
-    }
+    } while (tox_self_get_connection_status(tox1) == TOX_CONNECTION_NONE ||
+             tox_self_get_connection_status(tox2) == TOX_CONNECTION_NONE);
 
-    printf("toxes are online, took %ld seconds\n", time(nullptr) - cur_time);
+    printf("toxes are online, took %lu seconds\n", (unsigned long)(time(nullptr) - cur_time));
     const time_t con_time = time(nullptr);
 
-    while (tox_friend_get_connection_status(tox1, 0, nullptr) != TOX_CONNECTION_UDP ||
-            tox_friend_get_connection_status(tox2, 0, nullptr) != TOX_CONNECTION_UDP) {
+    do {
         tox_iterate(tox1, nullptr);
         tox_iterate(tox2, nullptr);
         c_sleep(ITERATION_INTERVAL);
-    }
+    } while (tox_friend_get_connection_status(tox1, 0, nullptr) != TOX_CONNECTION_UDP ||
+             tox_friend_get_connection_status(tox2, 0, nullptr) != TOX_CONNECTION_UDP);
 
-    printf("tox clients connected took %ld seconds\n", time(nullptr) - con_time);
+    printf("tox clients connected took %lu seconds\n", (unsigned long)(time(nullptr) - con_time));
 
     tox_callback_friend_name(tox2, nickchange_callback);
-    TOX_ERR_SET_INFO err_n;
+    Tox_Err_Set_Info err_n;
     bool ret = tox_self_set_name(tox1, (const uint8_t *)NICKNAME, sizeof(NICKNAME), &err_n);
     ck_assert_msg(ret && err_n == TOX_ERR_SET_INFO_OK, "tox_self_set_name failed because %u\n", err_n);
 
     bool nickname_updated = false;
 
-    while (!nickname_updated) {
+    do {
         tox_iterate(tox1, nullptr);
         tox_iterate(tox2, &nickname_updated);
         c_sleep(ITERATION_INTERVAL);
-    }
+    } while (!nickname_updated);
 
     ck_assert_msg(tox_friend_get_name_size(tox2, 0, nullptr) == sizeof(NICKNAME), "Name length not correct");
     uint8_t temp_name[sizeof(NICKNAME)];
     tox_friend_get_name(tox2, 0, temp_name, nullptr);
     ck_assert_msg(memcmp(temp_name, NICKNAME, sizeof(NICKNAME)) == 0, "Name not correct");
 
-    printf("test_set_name succeeded, took %ld seconds\n", time(nullptr) - cur_time);
+    printf("test_set_name succeeded, took %lu seconds\n", (unsigned long)(time(nullptr) - cur_time));
 
     tox_kill(tox1);
     tox_kill(tox2);

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright © 2016-2017 The TokTok team.
+ * Copyright © 2016-2018 The TokTok team.
  * Copyright © 2013 Tox project.
  *
  * This file is part of Tox, the free peer to peer instant messenger.
@@ -21,8 +21,8 @@
  * You should have received a copy of the GNU General Public License
  * along with Tox.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef ONION_ANNOUNCE_H
-#define ONION_ANNOUNCE_H
+#ifndef C_TOXCORE_TOXCORE_ONION_ANNOUNCE_H
+#define C_TOXCORE_TOXCORE_ONION_ANNOUNCE_H
 
 #include "onion.h"
 
@@ -40,7 +40,7 @@
 #define ONION_DATA_RESPONSE_MIN_SIZE (1 + CRYPTO_NONCE_SIZE + CRYPTO_PUBLIC_KEY_SIZE + CRYPTO_MAC_SIZE)
 
 #if ONION_PING_ID_SIZE != CRYPTO_PUBLIC_KEY_SIZE
-#error announce response packets assume that ONION_PING_ID_SIZE is equal to CRYPTO_PUBLIC_KEY_SIZE
+#error "announce response packets assume that ONION_PING_ID_SIZE is equal to CRYPTO_PUBLIC_KEY_SIZE"
 #endif
 
 #define ONION_DATA_REQUEST_MIN_SIZE (1 + CRYPTO_PUBLIC_KEY_SIZE + CRYPTO_NONCE_SIZE + CRYPTO_PUBLIC_KEY_SIZE + CRYPTO_MAC_SIZE)
@@ -120,7 +120,7 @@ int send_data_request(Networking_Core *net, const Onion_Path *path, IP_Port dest
                       const uint8_t *encrypt_public_key, const uint8_t *nonce, const uint8_t *data, uint16_t length);
 
 
-Onion_Announce *new_onion_announce(DHT *dht);
+Onion_Announce *new_onion_announce(Mono_Time *mono_time, DHT *dht);
 
 void kill_onion_announce(Onion_Announce *onion_a);
 

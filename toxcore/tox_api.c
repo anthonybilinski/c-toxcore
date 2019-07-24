@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SET_ERROR_PARAMETER(param, x) {if(param) {*param = x;}}
+#define SET_ERROR_PARAMETER(param, x) do { if (param) { *param = x; } } while (0)
 
 
 #define CONST_FUNCTION(lowercase, uppercase) \
@@ -19,6 +19,8 @@ CONST_FUNCTION(version_minor, VERSION_MINOR)
 CONST_FUNCTION(version_patch, VERSION_PATCH)
 CONST_FUNCTION(public_key_size, PUBLIC_KEY_SIZE)
 CONST_FUNCTION(secret_key_size, SECRET_KEY_SIZE)
+CONST_FUNCTION(conference_uid_size, CONFERENCE_UID_SIZE)
+CONST_FUNCTION(conference_id_size, CONFERENCE_ID_SIZE)
 CONST_FUNCTION(nospam_size, NOSPAM_SIZE)
 CONST_FUNCTION(address_size, ADDRESS_SIZE)
 CONST_FUNCTION(max_name_length, MAX_NAME_LENGTH)
@@ -29,6 +31,7 @@ CONST_FUNCTION(max_custom_packet_size, MAX_CUSTOM_PACKET_SIZE)
 CONST_FUNCTION(hash_length, HASH_LENGTH)
 CONST_FUNCTION(file_id_length, FILE_ID_LENGTH)
 CONST_FUNCTION(max_filename_length, MAX_FILENAME_LENGTH)
+CONST_FUNCTION(max_hostname_length, MAX_HOSTNAME_LENGTH)
 
 
 #define ACCESSORS(type, ns, name) \
@@ -43,14 +46,14 @@ void tox_options_set_##ns##name(struct Tox_Options *options, type name) \
 
 ACCESSORS(bool,, ipv6_enabled)
 ACCESSORS(bool,, udp_enabled)
-ACCESSORS(TOX_PROXY_TYPE, proxy_, type)
+ACCESSORS(Tox_Proxy_Type, proxy_, type)
 ACCESSORS(const char *, proxy_, host)
 ACCESSORS(uint16_t, proxy_, port)
 ACCESSORS(uint16_t,, start_port)
 ACCESSORS(uint16_t,, end_port)
 ACCESSORS(uint16_t,, tcp_port)
 ACCESSORS(bool,, hole_punching_enabled)
-ACCESSORS(TOX_SAVEDATA_TYPE, savedata_, type)
+ACCESSORS(Tox_Savedata_Type, savedata_, type)
 ACCESSORS(size_t, savedata_, length)
 ACCESSORS(tox_log_cb *, log_, callback)
 ACCESSORS(void *, log_, user_data)
@@ -80,7 +83,7 @@ void tox_options_default(struct Tox_Options *options)
     }
 }
 
-struct Tox_Options *tox_options_new(TOX_ERR_OPTIONS_NEW *error)
+struct Tox_Options *tox_options_new(Tox_Err_Options_New *error)
 {
     struct Tox_Options *options = (struct Tox_Options *)malloc(sizeof(struct Tox_Options));
 

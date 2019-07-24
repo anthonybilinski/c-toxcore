@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.65])
-AC_INIT([tox], [0.2.2])
+AC_INIT([tox], [0.2.10])
 AC_CONFIG_AUX_DIR(configure_aux)
 AC_CONFIG_SRCDIR([toxcore/net_crypto.c])
 AC_CONFIG_HEADERS([config.h])
@@ -22,9 +22,6 @@ BUILD_TESTS="yes"
 BUILD_AV="yes"
 BUILD_TESTING="yes"
 
-TOX_LOGGER="no"
-
-NCURSES_FOUND="no"
 LIBCONFIG_FOUND="no"
 WANT_NACL="no"
 ADD_NACL_OBJECTS_TO_PKGCONFIG="yes"
@@ -66,41 +63,26 @@ AC_ARG_ENABLE([randombytes-stir],
     ]
 )
 
-AC_ARG_ENABLE([logging],
-    [AC_HELP_STRING([--enable-logging], [enable logging (default: auto)]) ],
-    [
-        if test "x$enableval" = "xyes"; then
-            TOX_LOGGER="yes"
-
-            AC_DEFINE([MIN_LOGGER_LEVEL], [LOG_DEBUG], [LOG_LEVEL value])
-        fi
-    ]
-)
-
 AC_ARG_WITH(log-level,
     AC_HELP_STRING([--with-log-level=LEVEL],
                    [Logger levels: TRACE; DEBUG; INFO; WARNING; ERROR ]),
     [
-        if test "x$TOX_LOGGER" = "xno"; then
-            AC_MSG_WARN([Logging disabled!])
+        if test "x$withval" = "xTRACE"; then
+            AC_DEFINE([MIN_LOGGER_LEVEL], [LOGGER_LEVEL_TRACE], [Logger_Level value])
+
+        elif test "x$withval" = "xDEBUG"; then
+            AC_DEFINE([MIN_LOGGER_LEVEL], [LOGGER_LEVEL_DEBUG], [Logger_Level value])
+
+        elif test "x$withval" = "xINFO"; then
+            AC_DEFINE([MIN_LOGGER_LEVEL], [LOGGER_LEVEL_INFO], [Logger_Level value])
+
+        elif test "x$withval" = "xWARNING"; then
+            AC_DEFINE([MIN_LOGGER_LEVEL], [LOGGER_LEVEL_WARNING], [Logger_Level value])
+
+        elif test "x$withval" = "xERROR"; then
+            AC_DEFINE([MIN_LOGGER_LEVEL], [LOGGER_LEVEL_ERROR], [Logger_Level value])
         else
-            if test "x$withval" = "xTRACE"; then
-                AC_DEFINE([MIN_LOGGER_LEVEL], [LOG_TRACE], [LOG_LEVEL value])
-
-            elif test "x$withval" = "xDEBUG"; then
-                AC_DEFINE([MIN_LOGGER_LEVEL], [LOG_DEBUG], [LOG_LEVEL value])
-
-            elif test "x$withval" = "xINFO"; then
-                AC_DEFINE([MIN_LOGGER_LEVEL], [LOG_INFO], [LOG_LEVEL value])
-
-            elif test "x$withval" = "xWARNING"; then
-                AC_DEFINE([MIN_LOGGER_LEVEL], [LOG_WARNING], [LOG_LEVEL value])
-
-            elif test "x$withval" = "xERROR"; then
-                AC_DEFINE([MIN_LOGGER_LEVEL], [LOG_ERROR], [LOG_LEVEL value])
-            else
-                AC_MSG_WARN([Invalid logger level: $withval. Using default 'DEBUG'])
-            fi
+            AC_MSG_WARN([Invalid logger level: $withval. Using default.])
         fi
     ]
 )
@@ -312,7 +294,7 @@ MATH_LDFLAGS="-lm"
 AC_SUBST(MATH_LDFLAGS)
 
 # Checks for libraries.
-
+AC_CHECK_FUNCS([explicit_bzero memset_s])
 PKG_CHECK_MODULES([LIBSODIUM], [libsodium],
     [
         LIBSODIUM_FOUND="yes"
@@ -350,7 +332,9 @@ if test "x$WANT_NACL" = "xyes"; then
     if (test -f "$NACL_SEARCH_LIBS/cpucycles.o") &&
        (test -f "$NACL_SEARCH_LIBS/randombytes.o"); then
         NACL_OBJECTS="$NACL_SEARCH_LIBS/cpucycles.o $NACL_SEARCH_LIBS/randombytes.o"
+        AC_MSG_NOTICE([found extra NaCl objects: $NACL_OBJECTS])
         if test "x$ADD_NACL_OBJECTS_TO_PKGCONFIG" = "xyes"; then
+            AC_MSG_NOTICE([adding extra NaCl objects to pkg-config file])
             NACL_OBJECTS_PKGCONFIG="$NACL_OBJECTS"
         fi
     else
@@ -450,23 +434,8 @@ elif test "x$LIBSODIUM_FOUND" = "xno"; then
     AC_SUBST(LIBSODIUM_CFLAGS)
 fi
 
-# Checks for typedefs, structures, and compiler characteristics.
-AC_HEADER_STDBOOL
-AC_TYPE_INT16_T
-AC_TYPE_INT32_T
-AC_TYPE_PID_T
-AC_TYPE_SIZE_T
-AC_TYPE_UINT16_T
-AC_TYPE_UINT32_T
-AC_TYPE_UINT64_T
-AC_TYPE_UINT8_T
-AC_C_BIGENDIAN
-
-
 # Checks for library functions.
-AC_FUNC_FORK
-AC_CHECK_FUNCS([gettimeofday memset socket strchr malloc])
-if (test "x$WIN32" != "xyes") && (test "x$MACH" != "xyes") && (test "x${host_os#*openbsd}" == "x$host_os") && (test "x$DISABLE_RT" != "xyes"); then
+if (test "x$WIN32" != "xyes") && (test "x$MACH" != "xyes") && (test "x${host_os#*openbsd}" = "x$host_os") && (test "x$DISABLE_RT" != "xyes"); then
     AC_CHECK_LIB(rt, clock_gettime,
         [
             RT_LIBS="-lrt"

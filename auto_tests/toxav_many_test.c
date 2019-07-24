@@ -1,12 +1,6 @@
-#ifndef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
-#endif
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-
-#include "check_compat.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -15,19 +9,19 @@
 #include <sys/types.h>
 #include <time.h>
 
+#if !defined(_WIN32) && !defined(__WIN32__) && !defined(WIN32)
+#include <pthread.h>
+#endif
+
 #include <vpx/vpx_image.h>
 
+#include "../testing/misc_tools.h"
 #include "../toxav/toxav.h"
 #include "../toxcore/crypto_core.h"
 #include "../toxcore/logger.h"
 #include "../toxcore/tox.h"
 #include "../toxcore/util.h"
-
-#include "helpers.h"
-
-#if !defined(_WIN32) && !defined(__WIN32__) && !defined(WIN32)
-#include <pthread.h>
-#endif
+#include "check_compat.h"
 
 typedef struct {
     bool incoming;
@@ -88,7 +82,7 @@ static void t_accept_friend_request_cb(Tox *m, const uint8_t *public_key, const 
  */
 static ToxAV *setup_av_instance(Tox *tox, CallControl *CC)
 {
-    TOXAV_ERR_NEW error;
+    Toxav_Err_New error;
 
     ToxAV *av = toxav_new(tox, &error);
     ck_assert(error == TOXAV_ERR_NEW_OK);
@@ -113,7 +107,7 @@ static void *call_thread(void *pd)
     memset(BobCC, 0, sizeof(CallControl));
 
     { /* Call */
-        TOXAV_ERR_CALL rc;
+        Toxav_Err_Call rc;
         toxav_call(AliceAV, friend_number, 48, 3000, &rc);
 
         if (rc != TOXAV_ERR_CALL_OK) {
@@ -122,12 +116,12 @@ static void *call_thread(void *pd)
         }
     }
 
-    while (!BobCC->incoming) {
+    do {
         c_sleep(10);
-    }
+    } while (!BobCC->incoming);
 
     { /* Answer */
-        TOXAV_ERR_ANSWER rc;
+        Toxav_Err_Answer rc;
         toxav_answer(BobAV, 0, 8, 500, &rc);
 
         if (rc != TOXAV_ERR_ANSWER_OK) {
@@ -145,7 +139,7 @@ static void *call_thread(void *pd)
 
     time_t start_time = time(nullptr);
 
-    while (time(nullptr) - start_time < 4) {
+    do {
         toxav_iterate(AliceAV);
         toxav_iterate(BobAV);
 
@@ -156,10 +150,10 @@ static void *call_thread(void *pd)
         toxav_video_send_frame(BobAV, 0, 800, 600, video_y, video_u, video_v, nullptr);
 
         c_sleep(10);
-    }
+    } while (time(nullptr) - start_time < 4);
 
     { /* Hangup */
-        TOXAV_ERR_CALL_CONTROL rc;
+        Toxav_Err_Call_Control rc;
         toxav_call_control(AliceAV, friend_number, TOXAV_CALL_CONTROL_CANCEL, &rc);
 
         if (rc != TOXAV_ERR_CALL_CONTROL_OK) {
@@ -176,6 +170,8 @@ static void *call_thread(void *pd)
 
     printf("Closing thread\n");
     pthread_exit(nullptr);
+
+    return nullptr;
 }
 
 static void test_av_three_calls(void)
@@ -188,7 +184,7 @@ static void test_av_three_calls(void)
     CallControl AliceCC[3], BobsCC[3];
 
     {
-        TOX_ERR_NEW error;
+        Tox_Err_New error;
 
         bootstrap = tox_new_log(nullptr, &error, &index[0]);
         ck_assert(error == TOX_ERR_NEW_OK);
@@ -232,7 +228,7 @@ static void test_av_three_calls(void)
 
     uint8_t off = 1;
 
-    while (1) {
+    while (true) {
         tox_iterate(bootstrap, nullptr);
         tox_iterate(Alice, nullptr);
         tox_iterate(Bobs[0], nullptr);
@@ -244,7 +240,7 @@ static void test_av_three_calls(void)
                 tox_self_get_connection_status(Bobs[0]) &&
                 tox_self_get_connection_status(Bobs[1]) &&
                 tox_self_get_connection_status(Bobs[2]) && off) {
-            printf("Toxes are online, took %ld seconds\n", time(nullptr) - cur_time);
+            printf("Toxes are online, took %lu seconds\n", (unsigned long)(time(nullptr) - cur_time));
             off = 0;
         }
 
@@ -266,7 +262,7 @@ static void test_av_three_calls(void)
     BobsAV[2] = setup_av_instance(Bobs[2], BobsCC + 2);
 
     printf("Created 4 instances of ToxAV\n");
-    printf("All set after %ld seconds!\n", time(nullptr) - cur_time);
+    printf("All set after %lu seconds!\n", (unsigned long)(time(nullptr) - cur_time));
 
     thread_data tds[3];
     tds[0].AliceAV = AliceAV;
@@ -294,14 +290,14 @@ static void test_av_three_calls(void)
 
     time_t start_time = time(nullptr);
 
-    while (time(nullptr) - start_time < 5) {
+    do {
         tox_iterate(bootstrap, nullptr);
         tox_iterate(Alice, nullptr);
         tox_iterate(Bobs[0], nullptr);
         tox_iterate(Bobs[1], nullptr);
         tox_iterate(Bobs[2], nullptr);
         c_sleep(20);
-    }
+    } while (time(nullptr) - start_time < 5);
 
     ck_assert(pthread_join(tids[0], &retval) == 0);
     ck_assert(retval == nullptr);

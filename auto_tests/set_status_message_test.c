@@ -1,25 +1,20 @@
 /* Tests that we can set our status message
  */
 
-#ifndef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
-#endif
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
-#include "check_compat.h"
-
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
+#include "../testing/misc_tools.h"
 #include "../toxcore/ccompat.h"
 #include "../toxcore/tox.h"
 #include "../toxcore/util.h"
-
-#include "helpers.h"
+#include "check_compat.h"
 
 #define STATUS_MESSAGE "Installing Gentoo"
 
@@ -56,28 +51,28 @@ static void test_set_status_message(void)
 
     tox_bootstrap(tox2, "localhost", dht_port, dht_key, nullptr);
 
-    while (tox_self_get_connection_status(tox1) == TOX_CONNECTION_NONE ||
-            tox_self_get_connection_status(tox2) == TOX_CONNECTION_NONE) {
+    do {
         tox_iterate(tox1, nullptr);
         tox_iterate(tox2, nullptr);
 
         c_sleep(ITERATION_INTERVAL);
-    }
+    } while (tox_self_get_connection_status(tox1) == TOX_CONNECTION_NONE ||
+             tox_self_get_connection_status(tox2) == TOX_CONNECTION_NONE);
 
-    printf("toxes are online, took %ld seconds\n", time(nullptr) - cur_time);
+    printf("toxes are online, took %lu seconds\n", (unsigned long)(time(nullptr) - cur_time));
     const time_t con_time = time(nullptr);
 
-    while (tox_friend_get_connection_status(tox1, 0, nullptr) != TOX_CONNECTION_UDP ||
-            tox_friend_get_connection_status(tox2, 0, nullptr) != TOX_CONNECTION_UDP) {
+    do {
         tox_iterate(tox1, nullptr);
         tox_iterate(tox2, nullptr);
 
         c_sleep(ITERATION_INTERVAL);
-    }
+    } while (tox_friend_get_connection_status(tox1, 0, nullptr) != TOX_CONNECTION_UDP ||
+             tox_friend_get_connection_status(tox2, 0, nullptr) != TOX_CONNECTION_UDP);
 
-    printf("tox clients connected took %ld seconds\n", time(nullptr) - con_time);
+    printf("tox clients connected took %lu seconds\n", (unsigned long)(time(nullptr) - con_time));
 
-    TOX_ERR_SET_INFO err_n;
+    Tox_Err_Set_Info err_n;
     tox_callback_friend_status_message(tox2, status_callback);
     bool ret = tox_self_set_status_message(tox1, (const uint8_t *)STATUS_MESSAGE, sizeof(STATUS_MESSAGE),
                                            &err_n);
@@ -85,11 +80,11 @@ static void test_set_status_message(void)
 
     bool status_updated = false;
 
-    while (!status_updated) {
+    do {
         tox_iterate(tox1, nullptr);
         tox_iterate(tox2, &status_updated);
         c_sleep(ITERATION_INTERVAL);
-    }
+    } while (!status_updated);
 
     ck_assert_msg(tox_friend_get_status_message_size(tox2, 0, nullptr) == sizeof(STATUS_MESSAGE),
                   "status message length not correct");
@@ -98,7 +93,7 @@ static void test_set_status_message(void)
     ck_assert_msg(memcmp(cmp_status, STATUS_MESSAGE, sizeof(STATUS_MESSAGE)) == 0,
                   "status message not correct");
 
-    printf("test_set_status_message succeeded, took %ld seconds\n", time(nullptr) - cur_time);
+    printf("test_set_status_message succeeded, took %lu seconds\n", (unsigned long)(time(nullptr) - cur_time));
 
     tox_kill(tox1);
     tox_kill(tox2);

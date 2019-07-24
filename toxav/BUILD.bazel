@@ -18,6 +18,26 @@ cc_library(
     deps = ["//c-toxcore/toxcore:ccompat"],
 )
 
+cc_test(
+    name = "ring_buffer_test",
+    size = "small",
+    srcs = ["ring_buffer_test.cc"],
+    deps = [
+        ":ring_buffer",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "ring_buffer_srcs",
+    hdrs = [
+        "ring_buffer.c",
+        "ring_buffer.h",
+    ],
+    visibility = ["//c-toxcore/testing:__pkg__"],
+    deps = ["//c-toxcore/toxcore:ccompat"],
+)
+
 cc_library(
     name = "bwcontroller",
     srcs = ["bwcontroller.c"],
@@ -37,7 +57,8 @@ cc_library(
 
 cc_test(
     name = "rtp_test",
-    srcs = ["rtp_test.cpp"],
+    size = "small",
+    srcs = ["rtp_test.cc"],
     deps = [
         ":rtp",
         "//c-toxcore/toxcore:crypto_core",
@@ -80,7 +101,7 @@ cc_library(
     srcs = ["groupav.c"],
     hdrs = ["groupav.h"],
     deps = [
-        "//c-toxcore/toxcore:group",
+        "//c-toxcore/toxcore",
         "@opus",
     ],
 )
@@ -99,22 +120,5 @@ cc_library(
     deps = [
         ":groupav",
         ":video",
-    ],
-)
-
-cc_library(
-    name = "monolith",
-    hdrs = glob([
-        "*.c",
-        "*.h",
-    ]),
-    visibility = [
-        "//c-toxcore/other:__pkg__",
-        "//c-toxcore/testing:__pkg__",
-    ],
-    deps = [
-        "//c-toxcore/toxcore:group",
-        "@libvpx",
-        "@opus",
     ],
 )

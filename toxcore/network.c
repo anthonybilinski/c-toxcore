@@ -1099,18 +1099,11 @@ const char *ip_ntoa(const IP *ip, char *ip_str, size_t length)
             struct in_addr addr;
             fill_addr4(ip->ip.v4, &addr);
 
-            ip_str[0] = 0;
             inet_ntop(family, &addr, ip_str, length);
         } else if (net_family_is_ipv6(ip->family)) {
-            /* returns hex-groups enclosed into square brackets */
             struct in6_addr addr;
             fill_addr6(ip->ip.v6, &addr);
-
-            ip_str[0] = '[';
-            inet_ntop(family, &addr, &ip_str[1], length - 3);
-            size_t len = strlen(ip_str);
-            ip_str[len] = ']';
-            ip_str[len + 1] = 0;
+            inet_ntop(family, &addr, ip_str, length);
         } else {
             snprintf(ip_str, length, "(IP invalid, family %u)", ip->family.value);
         }

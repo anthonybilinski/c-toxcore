@@ -249,6 +249,59 @@ uint16_t onion_backup_nodes(const Onion_Client *onion_c, Node_format *nodes, uin
     return i;
 }
 
+uint32_t onion_backup_nodes_size(const Onion_Client *onion_c, Node_format *nodes, uint16_t max_num)
+{
+    if (!max_num) {
+        return 0;
+    }
+
+    int numv4 = 0;
+    int numv6 = 0;
+
+    uint32_t size = 0;
+    const uint16_t num_nodes = min_u16(onion_c->path_nodes_index, MAX_PATH_NODES);
+    uint16_t i = 0;
+
+    int min_max_nodes = max_num;
+    if (num_nodes < max_num)
+        min_max_nodes = max_num;
+
+    while (i < min_max_nodes) {
+        nodes[i] = onion_c->path_nodes[(onion_c->path_nodes_index - (1 + i)) % num_nodes];
+        Family ip_family = nodes[i].ip_port.ip.family;
+
+        if (net_family_is_ipv4(ip_family)) {
+            ++numv4;
+        } else if (net_family_is_ipv6(ip_family)) {
+            ++numv6;
+        }
+        ++i;
+    }
+
+    for (uint16_t j = 0; i < max_num && j < MAX_PATH_NODES && j < onion_c->path_nodes_index_bs; ++j) {
+        bool already_saved = false;
+
+        for (uint16_t k = 0; k < num_nodes; ++k) {
+            if (public_key_cmp(nodes[k].public_key, onion_c->path_nodes_bs[j].public_key) == 0) {
+                already_saved = true;
+                break;
+            }
+        }
+
+        if (!already_saved) {
+            Family ip_family = onion_c->path_nodes_bs[j].ip_port.ip.family;
+            if (net_family_is_ipv4(ip_family)) {
+                ++numv4;
+            } else if (net_family_is_ipv6(ip_family)) {
+                ++numv6;
+            }
+            ++i;
+        }
+    }
+
+    return packed_node_size(net_family_ipv4) * numv4 + packed_node_size(net_family_ipv6) * numv6;
+}
+
 /* Put up to max_num random nodes in nodes.
  *
  * return the number of nodes.

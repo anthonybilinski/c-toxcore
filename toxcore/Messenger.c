@@ -2808,6 +2808,7 @@ static uint32_t m_state_plugins_size(const Messenger *m)
             plugin != m->options.state_plugins + m->options.state_plugins_length;
             ++plugin) {
         size += sizesubhead + plugin->size(m);
+        printf("messenger cumulative size: %d\n", size);
     }
 
     return size;
@@ -3119,7 +3120,9 @@ static uint8_t *save_tcp_relays(const Messenger *m, uint8_t *data)
     }
 
     uint32_t num = m->num_loaded_relays;
+    printf("num loaded relays that are being re-saved %d\n", num);
     num += copy_connected_tcp_relays(m->net_crypto, relays + num, NUM_SAVED_TCP_RELAYS - num);
+    printf("num connected tcp relays saved %d\n", num - m->num_loaded_relays);
 
     int l = pack_nodes(data, NUM_SAVED_TCP_RELAYS * packed_node_size(net_family_tcp_ipv6), relays, num);
 
@@ -3152,7 +3155,8 @@ static State_Load_Status load_tcp_relays(Messenger *m, const uint8_t *data, uint
 // path node state plugin
 static uint32_t path_node_size(const Messenger *m)
 {
-    return NUM_SAVED_PATH_NODES * packed_node_size(net_family_tcp_ipv6);
+    Node_format nodes[NUM_SAVED_PATH_NODES];
+    return onion_backup_nodes_size(m->onion_c, nodes, NUM_SAVED_PATH_NODES);
 }
 
 static uint8_t *save_path_nodes(const Messenger *m, uint8_t *data)
@@ -3170,6 +3174,8 @@ static uint8_t *save_path_nodes(const Messenger *m, uint8_t *data)
         data += len;
     }
 
+    printf("saving %d TCP relays\n", num);
+    printf("TCP relay size: %ld\n", data - temp_data);
     return data;
 }
 

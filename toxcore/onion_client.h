@@ -67,6 +67,7 @@ int onion_add_bs_path_node(Onion_Client *onion_c, IP_Port ip_port, const uint8_t
  * return the number of nodes.
  */
 uint16_t onion_backup_nodes(const Onion_Client *onion_c, Node_format *nodes, uint16_t max_num);
+uint32_t onion_backup_nodes_size(const Onion_Client *onion_c, Node_format *nodes, uint16_t max_num);
 
 /* Add a friend who we want to connect to.
  *

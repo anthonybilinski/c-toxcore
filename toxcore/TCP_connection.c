@@ -1268,11 +1268,10 @@ unsigned int tcp_connection_to_online_tcp_relays(TCP_Connections *tcp_c, int con
  */
 uint32_t tcp_copy_connected_relays(TCP_Connections *tcp_c, Node_format *tcp_relays, uint16_t max_num)
 {
-    const uint32_t r = random_u32();
     uint32_t copied = 0;
 
     for (uint32_t i = 0; (i < tcp_c->tcp_connections_length) && (copied < max_num); ++i) {
-        TCP_con *tcp_con = get_tcp_connection(tcp_c, (i + r) % tcp_c->tcp_connections_length);
+        TCP_con *tcp_con = get_tcp_connection(tcp_c, i);
 
         if (!tcp_con) {
             continue;
@@ -1295,6 +1294,31 @@ uint32_t tcp_copy_connected_relays(TCP_Connections *tcp_c, Node_format *tcp_rela
     }
 
     return copied;
+}
+
+uint32_t tcp_get_copy_relays_size(TCP_Connections *tcp_c, uint16_t max_num)
+{
+    int numv4 = 0;
+    int numv6 = 0;
+
+    for (uint32_t i = 0; (i < tcp_c->tcp_connections_length) && ((numv4 + numv6) < max_num); ++i) {
+        TCP_con *tcp_con = get_tcp_connection(tcp_c, i);
+
+        if (!tcp_con) {
+            continue;
+        }
+
+        if (tcp_con->status == TCP_CONN_CONNECTED) {
+            Family relay_family = tcp_con_ip_port(tcp_con->connection).ip.family;
+
+            if (net_family_is_ipv4(relay_family)) {
+                ++numv4;
+            } else if (net_family_is_ipv6(relay_family)) {
+                ++numv6;
+            }
+        }
+    }
+    return packed_node_size(net_family_ipv4) * numv4 + packed_node_size(net_family_ipv6) * numv6;
 }
 
 /* Set if we want TCP_connection to allocate some connection for onion use.

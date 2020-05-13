@@ -3105,7 +3105,7 @@ static State_Load_Status load_status(Messenger *m, const uint8_t *data, uint32_t
 // TCP Relay state plugin
 static uint32_t tcp_relay_size(const Messenger *m)
 {
-    return NUM_SAVED_TCP_RELAYS * packed_node_size(net_family_tcp_ipv6);
+    return get_size_tcp_relays(m->net_crypto, NUM_SAVED_TCP_RELAYS);
 }
 
 static uint8_t *save_tcp_relays(const Messenger *m, uint8_t *data)

@@ -196,6 +196,7 @@ int add_tcp_relay_global(TCP_Connections *tcp_c, IP_Port ip_port, const uint8_t 
  * return 0 on failure.
  */
 uint32_t tcp_copy_connected_relays(TCP_Connections *tcp_c, Node_format *tcp_relays, uint16_t max_num);
+uint32_t tcp_get_copy_relays_size(TCP_Connections *tcp_c, uint16_t max_num); // test
 
 /* Returns a new TCP_Connections object associated with the secret_key.
  *
@@ -211,4 +212,3 @@ void do_tcp_connections(const Logger *logger, TCP_Connections *tcp_c, void *user
 void kill_tcp_connections(TCP_Connections *tcp_c);
 
 #endif
-

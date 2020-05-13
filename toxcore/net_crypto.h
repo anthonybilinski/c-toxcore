@@ -286,6 +286,7 @@ int send_tcp_onion_request(Net_Crypto *c, unsigned int tcp_connections_number, c
  * return 0 on failure.
  */
 unsigned int copy_connected_tcp_relays(Net_Crypto *c, Node_format *tcp_relays, uint16_t num);
+uint32_t get_size_tcp_relays(Net_Crypto *c, uint16_t num); // test
 
 /* Kill a crypto connection.
  *

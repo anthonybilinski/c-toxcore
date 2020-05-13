@@ -2281,6 +2281,15 @@ unsigned int copy_connected_tcp_relays(Net_Crypto *c, Node_format *tcp_relays, u
     return ret;
 }
 
+uint32_t get_size_tcp_relays(Net_Crypto *c, uint16_t num)
+{
+    pthread_mutex_lock(&c->tcp_mutex);
+    size_t ret = tcp_get_copy_relays_size(c->tcp_c, num);
+    pthread_mutex_unlock(&c->tcp_mutex);
+
+    return ret;
+}
+
 static void do_tcp(Net_Crypto *c, void *userdata)
 {
     pthread_mutex_lock(&c->tcp_mutex);
